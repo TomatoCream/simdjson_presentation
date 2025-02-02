@@ -2064,4 +2064,9 @@ cout << "Active implementation: "
 - simdjson’s parser retains internal buffers between parses, so the expensive memory allocation is done only once.
 ** Compiler Directives & Special Build Flags
 - Compiler flags (for instance, -O3 or -march=native) and specific macros are key to unlocking peak performance.
+** C++ optimizations summary
+- Zero cost abstractions
+- inline functions and casting
+- Error code over exceptions
+- memory and loop optimizations
 * Thank you
