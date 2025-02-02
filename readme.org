@@ -1,7 +1,7 @@
 #+TITLE: Parsing Gigabytes of JSON per Second
 #+AUTHOR: Wong Ding Feng
 #+LANGUAGE: en
-#+OPTIONS: num_lines:t toc:2 ^:nil
+#+OPTIONS: num_lines:t toc:1 ^:nil
 #+REVEAL_THEME: moon
 #+EXPORT_SELECT_STRINGS: ((org-export-string "latex") "\\usepackage{amsmath} \\usepackage{amsthm} \\usepackage{amssymb}")
 * Objectives
@@ -1779,154 +1779,34 @@ Instruction: _mm_madd_epi16 (PMADDWD again)
    - PMADDWD (multiply-add words): 5 cycles
    - PACKUSDW (pack): 1 cycle
    - Total latency: ~17 cycles
-* Actual implementation and optimization tricks in the code base
-** inline
-#+begin_src c++
-#elif defined(__GNUC__) && !defined(__OPTIMIZE__)
-  // If optimizations are disabled, forcing inlining can lead to significant
-  // code bloat and high compile times. Don't use simdjson_really_inline for
-  // unoptimized builds.
-  #define simdjson_inline inline
-#else
-#+end_src
-** static cast
-#+begin_src c++
-reinterpret_cast (Used in the SIMD code):
-
-static simdjson_inline simd8<T> load(const T values[32]) {
-    return _mm256_loadu_si256(reinterpret_cast<const __m256i *>(values));
-}
-
-Zero runtime cost - purely tells compiler to treat bits as different type
-No actual data conversion
-Most dangerous cast - must ensure types are compatible bit-wise
-Common in low-level/SIMD code where you know exact memory layout
-#+end_src
-
-#+begin_src c++
-template <typename Child> struct base {
-  __m256i value;
-
-  // This cast gets resolved at compile time with no runtime overhead
-  simdjson_inline operator const __m256i &() const { return this->value; }
-
-  // The Child type is known at compile time
-  simdjson_inline Child operator|(const Child other) const {
-    return _mm256_or_si256(*this, other);
-  }
-}
-#+end_src
-
-#+begin_src c++
-// With dynamic (runtime) casting:
-class Base { virtual ~Base() {} };
-class Derived : public Base { };
-
-void process(Base* ptr) {
-    Derived* d = dynamic_cast<Derived*>(ptr);  // Runtime check
-    if(d) { /* use d */ }
-}
-
-// With static (compile-time) casting like simdjson:
-template <typename T>
-struct base {
-    T* as_child() {
-        return static_cast<T*>(this);  // No runtime check needed
-    }
-};
-
-struct derived : base<derived> {
-};
-
-void process(derived& d) {
-    // Compiler knows exact type, no checks needed
-    auto* ptr = d.as_child();  // Compiles to essentially nothing
-}
-#+end_src
-Dynamic casting needs runtime type information (RTTI) and checks
-Static casting is just the compiler calculating new memory addresses
-Static casting can often be optimized away entirely
-No runtime overhead for type safety with static casting
-
-Compile to essentially the same assembly as if you had written the operations directly on the raw types - there's no casting overhead in the final machine code.
-*** about virtual functions
-early and late binding
+* Actual c++ code implementation and optimization tricks in the code base
+** SIMD8 zero cost "abstraction"
 #+begin_src text
-Key differences and use cases:
+                          +---------------------+
+                          |    base<Child>      |
+                          +---------------------+
+                                    │
+                                    │
+                     +--------------┴--------------+
+                     |                             |
+              (for T ≠ bool)                   (for bool)
+                     |                             |
+              +------▼------+                +------▼------+
+              |   base8<T>  |                | base8<bool> |
+              +-------------+                +-------------+
+                     │                             │
+                     │                             │
+            +--------▼--------+                    │
+            | base8_numeric<T>|                    │
+            +-----------------+                    │
+                     │                       +-----▼-----+
+           +---------┴---------+             |simd8<bool>|
+           |                   |             +-----------+
+           |                   |
+   +-------▼-------+   +-------▼-------+
+   | simd8<int8_t> |   | simd8<uint8_t>|
+   +---------------+   +---------------+
 
-Regular Functions:
-
-
-Faster performance (direct function call)
-Smaller object size (no vtable pointer)
-Binding decided at compile time
-Used when you want static/fixed behavior
-Used when performance is critical (like in simdjson)
-
-
-Virtual Functions:
-
-
-Runtime polymorphism (behavior can change based on actual object type)
-Allows for interface-based programming
-Enables "plugin" or extensible architectures
-Used when you need flexibility and dynamic behavior
-Common in frameworks and large-scale OOP designs
-#+end_src
-** simd8
-Let me explain the CRTP (Curiously Recurring Template Pattern) being used in this code:
-
-```cpp
-// Base template
-template <typename Child> struct base {
-    __m256i value;
-
-    // The base class methods use Child type
-    simdjson_inline Child operator|(const Child other) const {
-        return _mm256_or_si256(*this, other);
-    }
-
-    // Uses static_cast to Child
-    simdjson_inline Child &operator|=(const Child other) {
-        auto this_cast = static_cast<Child *>(this);
-        *this_cast = *this_cast | other;
-        return *this_cast;
-    }
-};
-
-// Child class that inherits from base with itself as template parameter
-struct simd8<uint8_t> : base8_numeric<uint8_t> {
-    // Implementation specific to uint8_t
-};
-```
-
-Key aspects:
-
-1. Static Polymorphism
-- No virtual functions - everything resolved at compile time
-- Child type is known in base class methods
-- Compiler can inline and optimize everything
-
-2. Type Safety
-```cpp
-simdjson_inline Child operator|(const Child other) const {
-    return _mm256_or_si256(*this, other);
-}
-```
-- Return type is correct derived class
-- Arguments must match derived class type
-- Caught at compile time if types don't match
-
-3. Static Casting
-```cpp
-auto this_cast = static_cast<Child *>(this);
-```
-- Safe because Child is guaranteed to be derived class
-- No runtime overhead - resolved at compile time
-- Allows access to derived class methods/members
-
-4. Inheritance Chain Example:
-```cpp
 base<simd8<uint8_t>>     // Base template
     ↑
 base8<uint8_t>          // Adds common SIMD operations
@@ -1934,18 +1814,254 @@ base8<uint8_t>          // Adds common SIMD operations
 base8_numeric<uint8_t>  // Adds numeric operations
     ↑
 simd8<uint8_t>         // Final implementation
-```
+#+end_src
+*** Quality of life abstractions
+#+begin_src c++
+  template<>
+  struct simd8<uint8_t>: base8_numeric<uint8_t> {
+    // Saturated math
+    simdjson_inline simd8<uint8_t> saturating_add(const simd8<uint8_t> other) const { return _mm256_adds_epu8(*this, other); }
+    simdjson_inline simd8<uint8_t> saturating_sub(const simd8<uint8_t> other) const { return _mm256_subs_epu8(*this, other); }
 
-5. Benefits in this Code:
-- Zero overhead abstraction
-- Type-safe SIMD operations
-- Reuse of common SIMD code
-- Specialized implementations where needed
-- Compile-time polymorphism
+    // Order-specific operations
+    simdjson_inline simd8<uint8_t> max_val(const simd8<uint8_t> other) const { return _mm256_max_epu8(*this, other); }
+    simdjson_inline simd8<uint8_t> min_val(const simd8<uint8_t> other) const { return _mm256_min_epu8(other, *this); }
+    // Same as >, but only guarantees true is nonzero (< guarantees true = -1)
+    simdjson_inline simd8<uint8_t> gt_bits(const simd8<uint8_t> other) const { return this->saturating_sub(other); }
+    // Same as <, but only guarantees true is nonzero (< guarantees true = -1)
+    simdjson_inline simd8<uint8_t> lt_bits(const simd8<uint8_t> other) const { return other.saturating_sub(*this); }
+    simdjson_inline simd8<bool> operator<=(const simd8<uint8_t> other) const { return other.max_val(*this) == other; }
+    simdjson_inline simd8<bool> operator>=(const simd8<uint8_t> other) const { return other.min_val(*this) == other; }
+    simdjson_inline simd8<bool> operator>(const simd8<uint8_t> other) const { return this->gt_bits(other).any_bits_set(); }
+    simdjson_inline simd8<bool> operator<(const simd8<uint8_t> other) const { return this->lt_bits(other).any_bits_set(); }
+  };
+#+end_src
+*** Quality of life abstractions
+#+begin_src c++
+    // Bit-specific operations
+    simdjson_inline simd8<bool> bits_not_set() const { return *this == uint8_t(0); }
+    simdjson_inline simd8<bool> bits_not_set(simd8<uint8_t> bits) const { return (*this & bits).bits_not_set(); }
+    simdjson_inline simd8<bool> any_bits_set() const { return ~this->bits_not_set(); }
+    simdjson_inline simd8<bool> any_bits_set(simd8<uint8_t> bits) const { return ~this->bits_not_set(bits); }
+    simdjson_inline bool is_ascii() const { return _mm256_movemask_epi8(*this) == 0; }
+    simdjson_inline bool bits_not_set_anywhere() const { return _mm256_testz_si256(*this, *this); }
+    simdjson_inline bool any_bits_set_anywhere() const { return !bits_not_set_anywhere(); }
+    simdjson_inline bool bits_not_set_anywhere(simd8<uint8_t> bits) const { return _mm256_testz_si256(*this, bits); }
+    simdjson_inline bool any_bits_set_anywhere(simd8<uint8_t> bits) const { return !bits_not_set_anywhere(bits); }
+    template<int N>
+    simdjson_inline simd8<uint8_t> shr() const { return simd8<uint8_t>(_mm256_srli_epi16(*this, N)) & uint8_t(0xFFu >> N); }
+    template<int N>
+    simdjson_inline simd8<uint8_t> shl() const { return simd8<uint8_t>(_mm256_slli_epi16(*this, N)) & uint8_t(0xFFu << N); }
+    // Get one of the bits and make a bitmask out of it.
+    // e.g. value.get_bit<7>() gets the high bit
+    template<int N>
+    simdjson_inline int get_bit() const { return _mm256_movemask_epi8(_mm256_slli_epi16(*this, 7-N)); }
+#+end_src
+** Template Metaprogramming & CRTP vs. Virtual Functions (Dynamic Binding)
+- **Compile-Time Polymorphism with Templates/CRTP:**
+  - **Zero-Cost Abstraction:** The CRTP pattern lets the compiler resolve function calls at compile time.
+    - *Example from simdjson:*
+      #+BEGIN_SRC c++
+        template<typename Child>
+        struct base {
+          // Overloaded operator (inline, no vtable overhead)
+          simdjson_inline Child operator|(const Child other) const {
+            return _mm256_or_si256(*this, other);
+          }
+        };
+      #+END_SRC
+  - **Inlining & Optimization:** The compiler can inline these functions, reducing function call overhead.
+  - **No Runtime Indirection:** Since the dispatch is resolved at compile time, there's no need for a vtable lookup.
+  - **Drawback:** Code bloat can occur due to multiple template instantiations, but this is usually an acceptable trade-off in performance‑critical code.
+*** Dynamic Binding with Virtual Functions
+- **Late Binding:** Function calls are resolved at runtime via a vtable.
+  - *Example (the costly alternative):*
+    #+BEGIN_SRC c++
+      struct Base {
+        virtual void foo() = 0;
+        virtual ~Base() = default;
+      };
 
-This pattern is particularly useful for SIMD code because:
-1. You want zero runtime overhead
-2. Operations are known at compile time
-3. Type safety is important
-4. Code reuse across different SIMD types
-5. Specialized implementations for different types
+      struct Derived : Base {
+        void foo() override {
+          // ... implementation ...
+        }
+      };
+    #+END_SRC
+- **Runtime Overhead:**
+  - Each call incurs an extra indirection (vtable lookup).
+  - Virtual calls are generally not inlined because the exact function is only known at runtime.
+- **Comparable to Java Interfaces:**
+  - In Java, interface methods (or virtual methods) are dispatched at runtime. While a JIT can sometimes inline such calls when it detects hot paths, C++ does not have a JIT and relies entirely on compile‑time optimizations.
+  - This makes virtual functions in C++ a “costly” alternative when compared to template-based approaches for performance‑critical code.
+*** Why C++ Chooses Compile-Time Polymorphism
+    - **Performance Sensitivity:** In scenarios like high‑performance parsing (as in simdjson), every extra cycle counts.
+    - **Deterministic Overhead:** With templates/CRTP, the performance characteristics are known at compile time—there’s no hidden cost of runtime dispatch.
+    - **Contrast with Java:**
+      - Java’s JIT can optimize away some of the virtual call overhead during runtime, but C++ has to resolve everything during compilation, making it essential to use techniques that yield zero‑overhead abstractions.
+** Inline Functions & Compile-Time Inlining
+- **Technique:** Functions are marked with `simdjson_inline` to encourage inlining.
+- **Why?** Inlining eliminates function call overhead for tiny, frequently used functions.
+- **Example from simdjson:**
+#+BEGIN_SRC c++
+#elif defined(__GNUC__) && !defined(__OPTIMIZE__)
+  // If optimizations are disabled, forcing inlining can lead to significant
+  // code bloat and high compile times. Don't use simdjson_really_inline for
+  // unoptimized builds.
+  #define simdjson_inline inline
+#else
+
+// Overloaded bitwise OR operator
+simdjson_inline Child operator|(const Child other) const {
+  return _mm256_or_si256(*this, other);
+}
+#+END_SRC
+- **Note:** The use of inlining on all small operations (e.g. arithmetic, bitwise operators) ensures maximum performance.
+** C++ Casts in simdjson: Performance Considerations
+- In high‑performance C++ code, using the proper cast is essential for both safety and speed.
+- C++ provides several cast operators:
+  - **static_cast**: Compile‑time conversions.
+  - **reinterpret_cast**: Low‑level, pointer and bit‑reinterpretation.
+  - **const_cast**: Remove constness.
+  - **dynamic_cast**: Runtime-checked casts (with RTTI).
+*** static_cast for CRTP Efficiency
+- **Purpose:** Convert base pointers to derived types in the Curiously Recurring Template Pattern (CRTP) without runtime overhead.
+- **Why?:** These conversions are known at compile‑time, ensuring zero‑cost abstraction.
+- **Example from simdjson:**
+#+BEGIN_SRC c++
+  template<typename Child>
+  struct base {
+    __m256i value;
+    // Overloaded compound assignment using CRTP
+    simdjson_inline Child& operator|=(const Child other) {
+      auto this_cast = static_cast<Child*>(this);
+      *this_cast = *this_cast | other;
+      return *this_cast;
+    }
+  };
+#+END_SRC
+- **Notes:**
+  - The `static_cast<Child*>(this)` converts the base class pointer to the derived type.
+  - This conversion happens entirely at compile time, incurring no runtime cost.
+*** reinterpret_cast for SIMD Memory Operations
+- **Purpose:** Reinterpret raw memory (such as an array of bytes) as SIMD register types.
+- **Why?:** When working with intrinsics (e.g. AVX2), you need to treat data as a special type (like `__m256i`), and reinterpret_cast does this with no extra overhead.
+- **Examples from simdjson:**
+  - **Loading Data:**
+#+BEGIN_SRC c++
+  static simdjson_inline simd8<T> load(const T values[32]) {
+    return _mm256_loadu_si256(reinterpret_cast<const __m256i *>(values));
+  }
+#+END_SRC
+- **Notes:**
+  - These reinterpret_casts allow the compiler to generate efficient SIMD load/store instructions.
+  - They incur no runtime penalty as they are resolved during compilation.
+*** Why Not dynamic_cast or const_cast?
+- **dynamic_cast:**
+  - Performs runtime type checking and incurs additional overhead.
+  - Not used in performance-critical paths like simdjson.
+- **const_cast:**
+  - Removes constness, but simdjson is designed with const correctness in mind.
+  - There’s no need to remove constness in this low‑level, performance‑sensitive code.
+- **Summary:**
+  - simdjson relies on **static_cast** and **reinterpret_cast** (plus implicit conversion operators) because they guarantee zero or minimal runtime overhead.
+*** Summary of Casts in simdjson
+- **static_cast:**
+  - Used for compile‑time conversions (e.g. CRTP base-to-derived pointer conversion).
+  - Zero‑cost and type‑safe.
+- **reinterpret_cast:**
+  - Used for pointer re‑interpretation (e.g. converting a byte array to a SIMD register pointer).
+  - Necessary for interfacing with low‑level intrinsics.
+- **Avoided Casts:**
+  - **dynamic_cast** and **const_cast** are not used in performance-critical sections to prevent unnecessary runtime overhead.
+** Why Error Codes Outperform Exceptions
+- Zero-cost error handling: No stack unwinding or EH tables
+- Better compiler optimizations: Linear control flow
+- Predictable branch patterns: CPU pipelining friendly
+- Smaller code size: No exception handling metadata
+#+begin_src c++
+simdjson_warn_unused error_code minify(const uint8_t *buf, size_t len, uint8_t *dst, size_t &dst_len) const noexcept final {
+  return set_best()->minify(buf, len, dst, dst_len);
+}
+#+end_src
+*** Assembly Comparison: Error Code vs Exception
+**** Error Code Path (simdjson style)
+#+begin_src asm
+check_ascii:
+  vptest %ymm0, %ymm1
+  jne .error        ; Single conditional branch
+  ; ... normal path ...
+
+.error:
+  mov eax, 1        ; Set error code
+  ret
+#+end_src
+**** Exception Path
+#+begin_src asm
+check_ascii:
+  vptest %ymm0, %ymm1
+  jne .exception
+  ; ... normal path ...
+
+.exception:
+  call __cxa_allocate_exception  ; Heavy EH machinery
+  ; ... stack unwinding setup ...
+#+end_src
+*** Key Performance Factors
+1. **No EH Table Overhead**
+   - Exception handling requires RTTI and stack unwinding tables
+   - Increases binary size by ~10-15% in our benchmarks
+
+2. **CPU Branch Prediction**
+   - Error codes use simple conditional branches
+     - Exceptions create unpredictable control flow
+
+3. **Inlining Friendly**
+   - Error return paths don't inhibit function inlining
+   - Critical for SIMD optimizations:
+** Memory Alignment & Padding
+- Correct memory alignment (and extra padding) is crucial for SIMD operations; unaligned accesses can severely hurt performance.
+- simdjson uses types such as padded_string and padded_string_view to guarantee ample padding.
+- Example from the padded string view helper:
+#+BEGIN_SRC cpp
+simdjson::padded_string_view get_padded_string_view(const char *buf, size_t len,
+                                                   simdjson::padded_string &jsonbuffer) {
+  if (need_allocation(buf, len)) { // unlikely case
+    jsonbuffer = simdjson::padded_string(buf, len);
+    return jsonbuffer;
+  } else { // no allocation needed (most common)
+    return simdjson::padded_string_view(buf, len, len + simdjson::SIMDJSON_PADDING);
+  }
+}
+#+END_SRC
+** Loop Unrolling and Vectorized Processing
+- **Key idea:** Unroll loops to manually do more things in one loop
+#+begin_src c++
+void extract_set_bits_optimized(uint64_t bitset, uint32_t* output) {
+    // Get total number of set bits
+    uint32_t count = __builtin_popcountll(bitset);
+    uint32_t* next_base = output + count;
+
+    // Process 8 bits at a time unconditionally
+    while (bitset) {
+        // Extract next 8 set bit positions, even if we don't have 8 bits
+        *output++ = __builtin_ctzll(bitset);
+        bitset &= (bitset - 1);  // Clear lowest set bit (blsr instruction)
+
+        *output++ = __builtin_ctzll(bitset);
+        bitset &= (bitset - 1);
+#+end_src
+** Runtime CPU Dispatching
+- Instead of compiling separate binaries for different architectures, simdjson selects the best implementation at runtime.
+- By using functions like get_active_implementation(), it dynamically chooses the fastest SIMD path available.
+- Example:
+#+BEGIN_SRC cpp
+cout << "Active implementation: "
+     << simdjson::get_active_implementation()->name() << endl;
+#+END_SRC
+** Avoiding Unnecessary Allocations
+- Reusing pre-allocated buffers improves cache locality and reduces repeated allocation overhead.
+- simdjson’s parser retains internal buffers between parses, so the expensive memory allocation is done only once.
+** Compiler Directives & Special Build Flags
+- Compiler flags (for instance, -O3 or -march=native) and specific macros are key to unlocking peak performance.
+* Thank you

@@ -16,7 +16,7 @@
 <div class="reveal">
 <div class="slides">
 <section id="sec-title-slide">
-<h1 class="title">Parsing Gigabytes of JSON per Second</h1><h2 class="author">Wong Ding Feng</h2><p class="date">Created: 2025-02-02 Sun 22:37</p>
+<h1 class="title">Parsing Gigabytes of JSON per Second</h1><h2 class="author">Wong Ding Feng</h2><p class="date">Created: 2025-02-03 Mon 00:17</p>
 </section>
 <section id="table-of-contents-section">
 <div id="table-of-contents" role="doc-toc">
@@ -24,72 +24,15 @@
 <div id="text-table-of-contents" role="doc-toc">
 <ul>
 <li><a href="#/slide-1">1. Objectives</a></li>
-<li><a href="#/slide-2">2. Problem</a>
-<ul>
-<li><a href="#/slide-2-1">2.1. How fast is your hardware</a></li>
-<li><a href="#/slide-2-2">2.2. Why is json interesting?</a></li>
-<li><a href="#/slide-2-3">2.3. Why you should be interested</a></li>
-<li><a href="#/slide-2-4">2.4. Against others</a></li>
-<li><a href="#/slide-2-5">2.5. On demand json</a></li>
-</ul>
-</li>
-<li><a href="#/slide-3">3. Ideas on how to do it fast?</a>
-<ul>
-<li><a href="#/slide-3-1">3.1. strategies</a></li>
-<li><a href="#/slide-3-2">3.2. What is fair game?</a></li>
-<li><a href="#/slide-3-3">3.3. Proper definition of JSON</a></li>
-<li><a href="#/slide-3-4">3.4. My reduced definition of JSON</a></li>
-<li><a href="#/slide-3-5">3.5. Strongly define: bool, string, number, null, object and array</a></li>
-<li><a href="#/slide-3-6">3.6. Strongly define: bool, string, number, null, object and array</a></li>
-<li><a href="#/slide-3-7">3.7. String: handle escaped quotes and UTF-8</a></li>
-<li><a href="#/slide-3-8">3.8. Summary of requirements</a></li>
-</ul>
-</li>
-<li><a href="#/slide-4">4. challenges</a>
-<ul>
-<li><a href="#/slide-4-1">4.1. writing a parser for it</a></li>
-<li><a href="#/slide-4-2">4.2. Given the challenge, how to do it fast?</a></li>
-</ul>
-</li>
-<li><a href="#/slide-5">5. About SIMD</a>
-<ul>
-<li><a href="#/slide-5-1">5.1. What is simd</a></li>
-<li><a href="#/slide-5-2">5.2. SIMD example</a></li>
-<li><a href="#/slide-5-3">5.3. CPU</a></li>
-<li><a href="#/slide-5-4">5.4. SIMD code is not that scary</a></li>
-<li><a href="#/slide-5-5">5.5. When SIMD Shines</a></li>
-<li><a href="#/slide-5-6">5.6. SIMD&rsquo;s Achilles Heel: Branching</a></li>
-<li><a href="#/slide-5-7">5.7. Write branchless code (bitwise operations)</a></li>
-<li><a href="#/slide-5-8">5.8. LLVM Compiler</a></li>
-</ul>
-</li>
-<li><a href="#/slide-6">6. Simdjson Implementation</a>
-<ul>
-<li><a href="#/slide-6-1">6.1. simdjson Architecture Overview</a></li>
-<li><a href="#/slide-6-2">6.2. simdjson diagram</a></li>
-<li><a href="#/slide-6-3">6.3. Stage 1: Structural and Pseudo Structural Index Construction</a></li>
-<li><a href="#/slide-6-4">6.4. Stage 2: Structured Navigation</a></li>
-</ul>
-</li>
-<li><a href="#/slide-7">7. Stage 1: Structural and Pseudo Structural Index Construction</a>
-<ul>
-<li><a href="#/slide-7-1">7.1. Stage 1: 1 Vectorized Classification and Pseudo-Structural Characters</a></li>
-<li><a href="#/slide-7-2">7.2. Stage 1: 2 Eliminated escaped or quoted substring</a></li>
-<li><a href="#/slide-7-3">7.3. Stage 1: 3 Character-Encoding Validation</a></li>
-</ul>
-</li>
-<li><a href="#/slide-8">8. Stage 2: Building the Tape</a>
-<ul>
-<li><a href="#/slide-8-1">8.1. Stage 2: 1 Number parsing</a></li>
-</ul>
-</li>
-<li><a href="#/slide-9">9. Actual implementation and optimization tricks in the code base</a>
-<ul>
-<li><a href="#/slide-9-1">9.1. inline</a></li>
-<li><a href="#/slide-9-2">9.2. static cast</a></li>
-<li><a href="#/slide-9-3">9.3. simd8</a></li>
-</ul>
-</li>
+<li><a href="#/slide-2">2. Problem</a></li>
+<li><a href="#/slide-3">3. Ideas on how to do it fast?</a></li>
+<li><a href="#/slide-4">4. challenges</a></li>
+<li><a href="#/slide-5">5. About SIMD</a></li>
+<li><a href="#/slide-6">6. Simdjson Implementation</a></li>
+<li><a href="#/slide-7">7. Stage 1: Structural and Pseudo Structural Index Construction</a></li>
+<li><a href="#/slide-8">8. Stage 2: Building the Tape</a></li>
+<li><a href="#/slide-9">9. Actual c++ code implementation and optimization tricks in the code base</a></li>
+<li><a href="#/slide-10">10. Thank you</a></li>
 </ul>
 </div>
 </div>
@@ -211,7 +154,7 @@ One core can read direct text at this speed:
 
 </ul>
 
-<div id="org452c686" class="figure">
+<div id="org1a56965" class="figure">
 <p><img src="https://arxiv.org/html/1902.08318v7/x1.png" alt="x1.png" style="background-color: white;" />
 </p>
 </div>
@@ -219,7 +162,7 @@ One core can read direct text at this speed:
 <section id="slide-2-4">
 <h3 id="2-4"><span class="section-number-3">2.4.</span> Against others</h3>
 
-<div id="org3a13e48" class="figure">
+<div id="org43818bd" class="figure">
 <p><img src="https://arxiv.org/html/1902.08318v7/x3.png" alt="x3.png" style="background-color: white;" />
 </p>
 </div>
@@ -227,7 +170,7 @@ One core can read direct text at this speed:
 <section id="slide-2-5">
 <h3 id="2-5"><span class="section-number-3">2.5.</span> On demand json</h3>
 
-<div id="orgdcef374" class="figure">
+<div id="org2cbd6a8" class="figure">
 <p><img src="https://arxiv.org/html/2312.17149v3/x1.png" alt="x1.png" style="background-color: white;" />
 </p>
 </div>
@@ -651,7 +594,7 @@ This is just simply the ascii code table, quite sure we are all very familiar wi
 
 </ul>
 
-<div id="org0ac131c" class="figure">
+<div id="orgc2d52ef" class="figure">
 <p><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/4c/USASCII_code_chart.svg/1280px-USASCII_code_chart.svg.png" alt="1280px-USASCII_code_chart.svg.png" style="background-color: white;" />
 </p>
 </div>
@@ -812,14 +755,14 @@ how does simd fit into all of this?
 <section id="slide-5-1">
 <h3 id="5-1"><span class="section-number-3">5.1.</span> What is simd</h3>
 
-<div id="orgbdb4e6f" class="figure">
+<div id="org98d835e" class="figure">
 <p><img src="https://pep-root6.github.io/docs/analysis/simd.png" alt="simd.png" />
 </p>
 </div>
 </section>
 <section id="slide-5-2">
 <h3 id="5-2"><span class="section-number-3">5.2.</span> SIMD example</h3>
-<pre class="example" id="org83c786b">
+<pre class="example" id="org0724c77">
 Adding 4 numbers simultaneously:
 
 Scalar:
@@ -905,7 +848,7 @@ Ice Lake uses 512-bit AVX-512 instructions (_mm512_shuffle_epi8)
 <li>High throughput</li>
 
 </ul>
-<pre class="example" id="orgcc9424a">
+<pre class="example" id="org9d03fe2">
 Perfect for SIMD:
 [1|2|3|4] × 2  = [2 |4 |6 |8 ] ✓
 [R|G|B|A] + 10 = [R'|G'|B'|A'] ✓
@@ -1122,7 +1065,7 @@ I&rsquo;ll just talk abit about how optimizations even work in the first place.
 
 </aside>
 
-<div id="org636b3aa" class="figure">
+<div id="org75d0a16" class="figure">
 <p><img src="https://llvm.org/img/LLVMWyvernSmall.png" alt="LLVMWyvernSmall.png" />
 </p>
 </div>
@@ -1301,7 +1244,7 @@ this is the computation graph of the IR in front
 
 </aside>
 
-<div id="org721f98a" class="figure">
+<div id="org1b4fb77" class="figure">
 <p><img src="attachments/unoptimized-ir.png" alt="unoptimized-ir.png" />
 </p>
 </div>
@@ -1344,7 +1287,7 @@ with deadcode eliminated
 
 </aside>
 
-<div id="org066fe4a" class="figure">
+<div id="orgd2f966c" class="figure">
 <p><img src="attachments/optimized-ir.png" alt="optimized-ir.png" />
 </p>
 </div>
@@ -1759,7 +1702,7 @@ hashing function is a fake O(1)
 </ul>
 <ol class="org-ol">
 <li><a id="7-1-1-2-1"></a>Simple example<br />
-<pre class="example" id="org8f5f95f">
+<pre class="example" id="orgbc80910">
 "LF:"
 
 Low nibble table
@@ -2579,7 +2522,7 @@ So there are 2 things to check, less than 0x30 which is 0x2F up here
 <li>Let&rsquo;s take valid input &ldquo;12345678&rdquo;:</li>
 
 </ul>
-<pre class="example" id="orgaf9c329">
+<pre class="example" id="org02dea66">
 Input bytes:    31 32 33 34 35 36 37 38
                 || || || || || || || ||
                 v| v| v| v| v| v| v| v|
@@ -2605,7 +2548,7 @@ Result1:        30 30 30 30 30 30 30 30
 </ul>
 </li>
 <li><a id="8-1-1-2-1-3"></a>Case 1: Valid Digit (0x39 = &rsquo;9&rsquo;)<br />
-<pre class="example" id="org5022315">
+<pre class="example" id="org9849153">
 0x39 = 0011 1001  (Original value '9')
 0x06 = 0000 0110  (Value we add)
       -----------
@@ -2623,7 +2566,7 @@ After right shift by 4:
 </pre>
 </li>
 <li><a id="8-1-1-2-1-4"></a>Case 2: Invalid Character (0x3A = &rsquo;:&rsquo;)<br />
-<pre class="example" id="orga65e1ff">
+<pre class="example" id="org1fbb9ea">
 0x3A = 0011 1010  (Original value ':')
 0x06 = 0000 0110  (Value we add)
       -----------
@@ -2650,7 +2593,7 @@ After right shift by 4:
 </pre>
 </li>
 <li><a id="8-1-1-2-1-5"></a>Step 2: Add 0x06 to detect non-digits<br />
-<pre class="example" id="orga86410f">
+<pre class="example" id="orgec20d3f">
 Low nibbles:    1  2  3  4  5  6  7  8
 Add 0x06:       7  8  9  A  B  C  D  E
                 ^  ^  ^  ^  ^  ^  ^  ^
@@ -2663,7 +2606,7 @@ If original &gt; 9: Carry affects high nibble
 <p>
 Take &ldquo;12345678&rdquo;:
 </p>
-<pre class="example" id="org35fc226">
+<pre class="example" id="org17d2bd6">
 
 Original:       31 32 33 34 35 36 37 38
                 v  v  v  v  v  v  v  v
@@ -2683,7 +2626,7 @@ OR together:    33 33 33 33 33 33 33 33
 <p>
 Take &ldquo;1234;678&rdquo;:
 </p>
-<pre class="example" id="orgfe08e5e">
+<pre class="example" id="orgb3259c3">
 Original:       31 32 33 34 3B 36 37 38
 After +0x06:    37 38 39 3A 41 3C 3D 3E
                                ^
@@ -2736,14 +2679,14 @@ OR together:    33 33 33 33 34 33 33 33 ≠ 0x3333...
 <li><a id="8-1-1-2-3"></a>Examples with Different Cases<br />
 <ol class="org-ol">
 <li><a id="8-1-1-2-3-1"></a>Valid Cases<br />
-<pre class="example" id="org469b0a2">
+<pre class="example" id="orgb17dec6">
 "00000000" -&gt; 0x3333333333333333 ✓
 "99999999" -&gt; 0x3333333333333333 ✓
 "12345678" -&gt; 0x3333333333333333 ✓
 </pre>
 </li>
 <li><a id="8-1-1-2-3-2"></a>Invalid Cases<br />
-<pre class="example" id="orge3fd1ee">
+<pre class="example" id="org0284898">
 "A" (0x41):
 Original:  41
 +0x06:     47
@@ -2818,7 +2761,7 @@ Example: &ldquo;12345678&rdquo; -&gt; 12345678
 </pre>
 </div>
 
-<pre class="example" id="org6499f3a">
+<pre class="example" id="org744d419">
 Input:          "12345678"
 ASCII values:   31 32 33 34 35 36 37 38
 Subtract:       30 30 30 30 30 30 30 30
@@ -2834,7 +2777,7 @@ Instruction:    _mm_sub_epi8 (PSUBB - packed subtract bytes)
 <span style="color: #3dea43364a63;"> </span> <span style="color: #ECBE7B;">__m128i</span> <span style="color: #dcaeea;">t1</span> = _mm_maddubs_epi16<span style="color: #51afef;">(</span>in, mul_1_10<span style="color: #51afef;">)</span>;
 </pre>
 </div>
-<pre class="example" id="org0c3e71a">
+<pre class="example" id="org204f416">
 Values:         1  2  3  4  5  6  7  8
 Multipliers:   10  1 10  1 10  1 10  1
                 |  |  |  |  |  |  |  |
@@ -2858,7 +2801,7 @@ what is the next step ?
 <span style="color: #3dea43364a63;"> </span> <span style="color: #ECBE7B;">__m128i</span> <span style="color: #dcaeea;">t2</span> = _mm_madd_epi16<span style="color: #51afef;">(</span>t1, mul_1_100<span style="color: #51afef;">)</span>;
 </pre>
 </div>
-<pre class="example" id="org7eaab1b">
+<pre class="example" id="org537b85b">
 Values:        12   34   56   78
 Multipliers:  100    1  100    1
                 |    |    |    |
@@ -2894,7 +2837,7 @@ Instruction: _mm_madd_epi16 (PMADDWD - multiply and add packed words)
 <span style="color: #3dea43364a63;"> </span> <span style="color: #ECBE7B;">__m128i</span> <span style="color: #dcaeea;">t3</span> = _mm_packus_epi32<span style="color: #51afef;">(</span>t2, t2<span style="color: #51afef;">)</span>;
 </pre>
 </div>
-<pre class="example" id="orgf979795">
+<pre class="example" id="org3a66587">
 Before:   1234(32-bit)  5678(32-bit)
 After:    1234(16-bit)  5678(16-bit)
 
@@ -2908,7 +2851,7 @@ Instruction: _mm_packus_epi32 (PACKUSDW - pack with unsigned saturation)
 <span style="color: #3dea43364a63;"> </span> <span style="color: #ECBE7B;">__m128i</span> <span style="color: #dcaeea;">t4</span> = _mm_madd_epi16<span style="color: #51afef;">(</span>t3, mul_1_10000<span style="color: #51afef;">)</span>;
 </pre>
 </div>
-<pre class="example" id="orgef4238b">
+<pre class="example" id="org591dc2a">
 Values:        1234     5678
 Multipliers:  10000        1
                   |        |
@@ -2954,12 +2897,190 @@ Instruction: _mm_madd_epi16 (PMADDWD again)
 </section>
 <section>
 <section id="slide-9">
-<h2 id="9"><span class="section-number-2">9.</span> Actual implementation and optimization tricks in the code base</h2>
+<h2 id="9"><span class="section-number-2">9.</span> Actual c++ code implementation and optimization tricks in the code base</h2>
 <div class="outline-text-2" id="text-9">
 </div>
 </section>
 <section id="slide-9-1">
-<h3 id="9-1"><span class="section-number-3">9.1.</span> inline</h3>
+<h3 id="9-1"><span class="section-number-3">9.1.</span> SIMD8 zero cost &ldquo;abstraction&rdquo;</h3>
+<div class="org-src-container">
+
+<pre class="src src-text">                          +---------------------+
+                          |    base&lt;Child&gt;      |
+                          +---------------------+
+                                    &#9474;
+                                    &#9474;
+                     +--------------&#9524;--------------+
+                     |                             |
+              (for T &#8800; bool)                   (for bool)
+                     |                             |
+              +------&#9660;------+                +------&#9660;------+
+              |   base8&lt;T&gt;  |                | base8&lt;bool&gt; |
+              +-------------+                +-------------+
+                     &#9474;                             &#9474;
+                     &#9474;                             &#9474;
+            +--------&#9660;--------+                    &#9474;
+            | base8_numeric&lt;T&gt;|                    &#9474;
+            +-----------------+                    &#9474;
+                     &#9474;                       +-----&#9660;-----+
+           +---------&#9524;---------+             |simd8&lt;bool&gt;|
+           |                   |             +-----------+
+           |                   |
+   +-------&#9660;-------+   +-------&#9660;-------+
+   | simd8&lt;int8_t&gt; |   | simd8&lt;uint8_t&gt;|
+   +---------------+   +---------------+
+
+base&lt;simd8&lt;uint8_t&gt;&gt;     // Base template
+    &#8593;
+base8&lt;uint8_t&gt;          // Adds common SIMD operations
+    &#8593;
+base8_numeric&lt;uint8_t&gt;  // Adds numeric operations
+    &#8593;
+simd8&lt;uint8_t&gt;         // Final implementation
+</pre>
+</div>
+</section>
+<section id="slide-9-1-1">
+<h4 id="9-1-1"><span class="section-number-4">9.1.1.</span> Quality of life abstractions</h4>
+<div class="org-src-container">
+
+<pre class="src src-c++"><span style="color: #3dea43364a63;"> </span> <span style="color: #51afef;">template</span><span style="color: #51afef;">&lt;&gt;</span>
+<span style="color: #3dea43364a63;"> </span> <span style="color: #51afef;">struct</span> <span style="color: #ECBE7B;">simd8</span><span style="color: #51afef;">&lt;</span><span style="color: #ECBE7B;">uint8_t</span><span style="color: #51afef;">&gt;</span>: <span style="color: #ECBE7B;">base8_numeric</span><span style="color: #51afef;">&lt;</span><span style="color: #ECBE7B;">uint8_t</span><span style="color: #51afef;">&gt;</span> <span style="color: #51afef;">{</span>
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #5B6268;">// </span><span style="color: #5B6268;">Saturated math</span>
+<span style="color: #3dea43364a63;"> </span>   simdjson_inline <span style="color: #ECBE7B;">simd8</span><span style="color: #c678dd;">&lt;</span><span style="color: #ECBE7B;">uint8_t</span><span style="color: #c678dd;">&gt;</span> <span style="color: #c678dd;">saturating_add</span><span style="color: #c678dd;">(</span><span style="color: #51afef;">const</span> <span style="color: #ECBE7B;">simd8</span><span style="color: #98be65;">&lt;</span><span style="color: #ECBE7B;">uint8_t</span><span style="color: #98be65;">&gt;</span> <span style="color: #dcaeea;">other</span><span style="color: #c678dd;">)</span> <span style="color: #51afef;">const</span> <span style="color: #c678dd;">{</span> <span style="color: #51afef;">return</span> _mm256_adds_epu8<span style="color: #98be65;">(</span>*<span style="color: #51afef;">this</span>, other<span style="color: #98be65;">)</span>; <span style="color: #c678dd;">}</span>
+<span style="color: #3dea43364a63;"> </span>   simdjson_inline <span style="color: #ECBE7B;">simd8</span><span style="color: #c678dd;">&lt;</span><span style="color: #ECBE7B;">uint8_t</span><span style="color: #c678dd;">&gt;</span> <span style="color: #c678dd;">saturating_sub</span><span style="color: #c678dd;">(</span><span style="color: #51afef;">const</span> <span style="color: #ECBE7B;">simd8</span><span style="color: #98be65;">&lt;</span><span style="color: #ECBE7B;">uint8_t</span><span style="color: #98be65;">&gt;</span> <span style="color: #dcaeea;">other</span><span style="color: #c678dd;">)</span> <span style="color: #51afef;">const</span> <span style="color: #c678dd;">{</span> <span style="color: #51afef;">return</span> _mm256_subs_epu8<span style="color: #98be65;">(</span>*<span style="color: #51afef;">this</span>, other<span style="color: #98be65;">)</span>; <span style="color: #c678dd;">}</span>
+ 
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #5B6268;">// </span><span style="color: #5B6268;">Order-specific operations</span>
+<span style="color: #3dea43364a63;"> </span>   simdjson_inline <span style="color: #ECBE7B;">simd8</span><span style="color: #c678dd;">&lt;</span><span style="color: #ECBE7B;">uint8_t</span><span style="color: #c678dd;">&gt;</span> <span style="color: #c678dd;">max_val</span><span style="color: #c678dd;">(</span><span style="color: #51afef;">const</span> <span style="color: #ECBE7B;">simd8</span><span style="color: #98be65;">&lt;</span><span style="color: #ECBE7B;">uint8_t</span><span style="color: #98be65;">&gt;</span> <span style="color: #dcaeea;">other</span><span style="color: #c678dd;">)</span> <span style="color: #51afef;">const</span> <span style="color: #c678dd;">{</span> <span style="color: #51afef;">return</span> _mm256_max_epu8<span style="color: #98be65;">(</span>*<span style="color: #51afef;">this</span>, other<span style="color: #98be65;">)</span>; <span style="color: #c678dd;">}</span>
+<span style="color: #3dea43364a63;"> </span>   simdjson_inline <span style="color: #ECBE7B;">simd8</span><span style="color: #c678dd;">&lt;</span><span style="color: #ECBE7B;">uint8_t</span><span style="color: #c678dd;">&gt;</span> <span style="color: #c678dd;">min_val</span><span style="color: #c678dd;">(</span><span style="color: #51afef;">const</span> <span style="color: #ECBE7B;">simd8</span><span style="color: #98be65;">&lt;</span><span style="color: #ECBE7B;">uint8_t</span><span style="color: #98be65;">&gt;</span> <span style="color: #dcaeea;">other</span><span style="color: #c678dd;">)</span> <span style="color: #51afef;">const</span> <span style="color: #c678dd;">{</span> <span style="color: #51afef;">return</span> _mm256_min_epu8<span style="color: #98be65;">(</span>other, *<span style="color: #51afef;">this</span><span style="color: #98be65;">)</span>; <span style="color: #c678dd;">}</span>
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #5B6268;">// </span><span style="color: #5B6268;">Same as &gt;, but only guarantees true is nonzero (&lt; guarantees true = -1)</span>
+<span style="color: #3dea43364a63;"> </span>   simdjson_inline <span style="color: #ECBE7B;">simd8</span><span style="color: #c678dd;">&lt;</span><span style="color: #ECBE7B;">uint8_t</span><span style="color: #c678dd;">&gt;</span> <span style="color: #c678dd;">gt_bits</span><span style="color: #c678dd;">(</span><span style="color: #51afef;">const</span> <span style="color: #ECBE7B;">simd8</span><span style="color: #98be65;">&lt;</span><span style="color: #ECBE7B;">uint8_t</span><span style="color: #98be65;">&gt;</span> <span style="color: #dcaeea;">other</span><span style="color: #c678dd;">)</span> <span style="color: #51afef;">const</span> <span style="color: #c678dd;">{</span> <span style="color: #51afef;">return</span> <span style="color: #51afef;">this</span>-&gt;saturating_sub<span style="color: #98be65;">(</span>other<span style="color: #98be65;">)</span>; <span style="color: #c678dd;">}</span>
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #5B6268;">// </span><span style="color: #5B6268;">Same as &lt;, but only guarantees true is nonzero (&lt; guarantees true = -1)</span>
+<span style="color: #3dea43364a63;"> </span>   simdjson_inline <span style="color: #ECBE7B;">simd8</span><span style="color: #c678dd;">&lt;</span><span style="color: #ECBE7B;">uint8_t</span><span style="color: #c678dd;">&gt;</span> <span style="color: #c678dd;">lt_bits</span><span style="color: #c678dd;">(</span><span style="color: #51afef;">const</span> <span style="color: #ECBE7B;">simd8</span><span style="color: #98be65;">&lt;</span><span style="color: #ECBE7B;">uint8_t</span><span style="color: #98be65;">&gt;</span> <span style="color: #dcaeea;">other</span><span style="color: #c678dd;">)</span> <span style="color: #51afef;">const</span> <span style="color: #c678dd;">{</span> <span style="color: #51afef;">return</span> other.saturating_sub<span style="color: #98be65;">(</span>*<span style="color: #51afef;">this</span><span style="color: #98be65;">)</span>; <span style="color: #c678dd;">}</span>
+<span style="color: #3dea43364a63;"> </span>   simdjson_inline <span style="color: #ECBE7B;">simd8</span><span style="color: #c678dd;">&lt;</span><span style="color: #ECBE7B;">bool</span><span style="color: #c678dd;">&gt;</span> <span style="color: #51afef;">operator</span><span style="color: #c678dd;">&lt;=</span><span style="color: #c678dd;">(</span><span style="color: #51afef;">const</span> <span style="color: #ECBE7B;">simd8</span><span style="color: #98be65;">&lt;</span><span style="color: #ECBE7B;">uint8_t</span><span style="color: #98be65;">&gt;</span> <span style="color: #dcaeea;">other</span><span style="color: #c678dd;">)</span> <span style="color: #51afef;">const</span> <span style="color: #c678dd;">{</span> <span style="color: #51afef;">return</span> other.max_val<span style="color: #98be65;">(</span>*<span style="color: #51afef;">this</span><span style="color: #98be65;">)</span> == other; <span style="color: #c678dd;">}</span>
+<span style="color: #3dea43364a63;"> </span>   simdjson_inline <span style="color: #ECBE7B;">simd8</span><span style="color: #c678dd;">&lt;</span><span style="color: #ECBE7B;">bool</span><span style="color: #c678dd;">&gt;</span> <span style="color: #51afef;">operator</span><span style="color: #c678dd;">&gt;=</span><span style="color: #c678dd;">(</span><span style="color: #51afef;">const</span> <span style="color: #ECBE7B;">simd8</span><span style="color: #98be65;">&lt;</span><span style="color: #ECBE7B;">uint8_t</span><span style="color: #98be65;">&gt;</span> <span style="color: #dcaeea;">other</span><span style="color: #c678dd;">)</span> <span style="color: #51afef;">const</span> <span style="color: #c678dd;">{</span> <span style="color: #51afef;">return</span> other.min_val<span style="color: #98be65;">(</span>*<span style="color: #51afef;">this</span><span style="color: #98be65;">)</span> == other; <span style="color: #c678dd;">}</span>
+<span style="color: #3dea43364a63;"> </span>   simdjson_inline <span style="color: #ECBE7B;">simd8</span><span style="color: #c678dd;">&lt;</span><span style="color: #ECBE7B;">bool</span><span style="color: #c678dd;">&gt;</span> <span style="color: #51afef;">operator</span><span style="color: #c678dd;">&gt;</span><span style="color: #c678dd;">(</span><span style="color: #51afef;">const</span> <span style="color: #ECBE7B;">simd8</span><span style="color: #98be65;">&lt;</span><span style="color: #ECBE7B;">uint8_t</span><span style="color: #98be65;">&gt;</span> <span style="color: #dcaeea;">other</span><span style="color: #c678dd;">)</span> <span style="color: #51afef;">const</span> <span style="color: #c678dd;">{</span> <span style="color: #51afef;">return</span> <span style="color: #51afef;">this</span>-&gt;gt_bits<span style="color: #98be65;">(</span>other<span style="color: #98be65;">)</span>.any_bits_set<span style="color: #98be65;">()</span>; <span style="color: #c678dd;">}</span>
+<span style="color: #3dea43364a63;"> </span>   simdjson_inline <span style="color: #ECBE7B;">simd8</span><span style="color: #c678dd;">&lt;</span><span style="color: #ECBE7B;">bool</span><span style="color: #c678dd;">&gt;</span> <span style="color: #51afef;">operator</span><span style="color: #c678dd;">&lt;</span><span style="color: #c678dd;">(</span><span style="color: #51afef;">const</span> <span style="color: #ECBE7B;">simd8</span><span style="color: #98be65;">&lt;</span><span style="color: #ECBE7B;">uint8_t</span><span style="color: #98be65;">&gt;</span> <span style="color: #dcaeea;">other</span><span style="color: #c678dd;">)</span> <span style="color: #51afef;">const</span> <span style="color: #c678dd;">{</span> <span style="color: #51afef;">return</span> <span style="color: #51afef;">this</span>-&gt;lt_bits<span style="color: #98be65;">(</span>other<span style="color: #98be65;">)</span>.any_bits_set<span style="color: #98be65;">()</span>; <span style="color: #c678dd;">}</span>
+<span style="color: #3dea43364a63;"> </span> <span style="color: #51afef;">}</span>;
+</pre>
+</div>
+</section>
+<section id="slide-9-1-2">
+<h4 id="9-1-2"><span class="section-number-4">9.1.2.</span> Quality of life abstractions</h4>
+<div class="org-src-container">
+
+<pre class="src src-c++"><span style="color: #3dea43364a63;"> </span>   <span style="color: #5B6268;">// </span><span style="color: #5B6268;">Bit-specific operations</span>
+<span style="color: #3dea43364a63;"> </span>   simdjson_inline <span style="color: #ECBE7B;">simd8</span><span style="color: #51afef;">&lt;</span><span style="color: #ECBE7B;">bool</span><span style="color: #51afef;">&gt;</span> <span style="color: #c678dd;">bits_not_set</span><span style="color: #51afef;">()</span> <span style="color: #51afef;">const</span> <span style="color: #51afef;">{</span> <span style="color: #51afef;">return</span> *<span style="color: #51afef;">this</span> == uint8_t<span style="color: #c678dd;">(</span><span style="color: #da8548; font-weight: bold;">0</span><span style="color: #c678dd;">)</span>; <span style="color: #51afef;">}</span>
+<span style="color: #3dea43364a63;"> </span>   simdjson_inline <span style="color: #ECBE7B;">simd8</span><span style="color: #51afef;">&lt;</span><span style="color: #ECBE7B;">bool</span><span style="color: #51afef;">&gt;</span> <span style="color: #c678dd;">bits_not_set</span><span style="color: #51afef;">(</span><span style="color: #ECBE7B;">simd8</span><span style="color: #c678dd;">&lt;</span><span style="color: #ECBE7B;">uint8_t</span><span style="color: #c678dd;">&gt;</span> <span style="color: #dcaeea;">bits</span><span style="color: #51afef;">)</span> <span style="color: #51afef;">const</span> <span style="color: #51afef;">{</span> <span style="color: #51afef;">return</span> <span style="color: #c678dd;">(</span>*<span style="color: #51afef;">this</span> &amp; bits<span style="color: #c678dd;">)</span>.bits_not_set<span style="color: #c678dd;">()</span>; <span style="color: #51afef;">}</span>
+<span style="color: #3dea43364a63;"> </span>   simdjson_inline <span style="color: #ECBE7B;">simd8</span><span style="color: #51afef;">&lt;</span><span style="color: #ECBE7B;">bool</span><span style="color: #51afef;">&gt;</span> <span style="color: #c678dd;">any_bits_set</span><span style="color: #51afef;">()</span> <span style="color: #51afef;">const</span> <span style="color: #51afef;">{</span> <span style="color: #51afef;">return</span> ~<span style="color: #51afef;">this</span>-&gt;bits_not_set<span style="color: #c678dd;">()</span>; <span style="color: #51afef;">}</span>
+<span style="color: #3dea43364a63;"> </span>   simdjson_inline <span style="color: #ECBE7B;">simd8</span><span style="color: #51afef;">&lt;</span><span style="color: #ECBE7B;">bool</span><span style="color: #51afef;">&gt;</span> <span style="color: #c678dd;">any_bits_set</span><span style="color: #51afef;">(</span><span style="color: #ECBE7B;">simd8</span><span style="color: #c678dd;">&lt;</span><span style="color: #ECBE7B;">uint8_t</span><span style="color: #c678dd;">&gt;</span> <span style="color: #dcaeea;">bits</span><span style="color: #51afef;">)</span> <span style="color: #51afef;">const</span> <span style="color: #51afef;">{</span> <span style="color: #51afef;">return</span> ~<span style="color: #51afef;">this</span>-&gt;bits_not_set<span style="color: #c678dd;">(</span>bits<span style="color: #c678dd;">)</span>; <span style="color: #51afef;">}</span>
+<span style="color: #3dea43364a63;"> </span>   simdjson_inline <span style="color: #ECBE7B;">bool</span> <span style="color: #c678dd;">is_ascii</span><span style="color: #51afef;">()</span> <span style="color: #51afef;">const</span> <span style="color: #51afef;">{</span> <span style="color: #51afef;">return</span> _mm256_movemask_epi8<span style="color: #c678dd;">(</span>*<span style="color: #51afef;">this</span><span style="color: #c678dd;">)</span> == <span style="color: #da8548; font-weight: bold;">0</span>; <span style="color: #51afef;">}</span>
+<span style="color: #3dea43364a63;"> </span>   simdjson_inline <span style="color: #ECBE7B;">bool</span> <span style="color: #c678dd;">bits_not_set_anywhere</span><span style="color: #51afef;">()</span> <span style="color: #51afef;">const</span> <span style="color: #51afef;">{</span> <span style="color: #51afef;">return</span> _mm256_testz_si256<span style="color: #c678dd;">(</span>*<span style="color: #51afef;">this</span>, *<span style="color: #51afef;">this</span><span style="color: #c678dd;">)</span>; <span style="color: #51afef;">}</span>
+<span style="color: #3dea43364a63;"> </span>   simdjson_inline <span style="color: #ECBE7B;">bool</span> <span style="color: #c678dd;">any_bits_set_anywhere</span><span style="color: #51afef;">()</span> <span style="color: #51afef;">const</span> <span style="color: #51afef;">{</span> <span style="color: #51afef;">return</span> <span style="color: #51afef; font-weight: bold;">!</span>bits_not_set_anywhere<span style="color: #c678dd;">()</span>; <span style="color: #51afef;">}</span>
+<span style="color: #3dea43364a63;"> </span>   simdjson_inline <span style="color: #ECBE7B;">bool</span> <span style="color: #c678dd;">bits_not_set_anywhere</span><span style="color: #51afef;">(</span><span style="color: #ECBE7B;">simd8</span><span style="color: #c678dd;">&lt;</span><span style="color: #ECBE7B;">uint8_t</span><span style="color: #c678dd;">&gt;</span> <span style="color: #dcaeea;">bits</span><span style="color: #51afef;">)</span> <span style="color: #51afef;">const</span> <span style="color: #51afef;">{</span> <span style="color: #51afef;">return</span> _mm256_testz_si256<span style="color: #c678dd;">(</span>*<span style="color: #51afef;">this</span>, bits<span style="color: #c678dd;">)</span>; <span style="color: #51afef;">}</span>
+<span style="color: #3dea43364a63;"> </span>   simdjson_inline <span style="color: #ECBE7B;">bool</span> <span style="color: #c678dd;">any_bits_set_anywhere</span><span style="color: #51afef;">(</span><span style="color: #ECBE7B;">simd8</span><span style="color: #c678dd;">&lt;</span><span style="color: #ECBE7B;">uint8_t</span><span style="color: #c678dd;">&gt;</span> <span style="color: #dcaeea;">bits</span><span style="color: #51afef;">)</span> <span style="color: #51afef;">const</span> <span style="color: #51afef;">{</span> <span style="color: #51afef;">return</span> <span style="color: #51afef; font-weight: bold;">!</span>bits_not_set_anywhere<span style="color: #c678dd;">(</span>bits<span style="color: #c678dd;">)</span>; <span style="color: #51afef;">}</span>
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #51afef;">template</span><span style="color: #51afef;">&lt;</span><span style="color: #ECBE7B;">int</span> <span style="color: #dcaeea;">N</span><span style="color: #51afef;">&gt;</span>
+<span style="color: #3dea43364a63;"> </span>   simdjson_inline <span style="color: #ECBE7B;">simd8</span><span style="color: #51afef;">&lt;</span><span style="color: #ECBE7B;">uint8_t</span><span style="color: #51afef;">&gt;</span> <span style="color: #c678dd;">shr</span><span style="color: #51afef;">()</span> <span style="color: #51afef;">const</span> <span style="color: #51afef;">{</span> <span style="color: #51afef;">return</span> simd8<span style="color: #c678dd;">&lt;</span><span style="color: #ECBE7B;">uint8_t</span><span style="color: #c678dd;">&gt;(</span>_mm256_srli_epi16<span style="color: #98be65;">(</span>*<span style="color: #51afef;">this</span>, N<span style="color: #98be65;">)</span><span style="color: #c678dd;">)</span> &amp; uint8_t<span style="color: #c678dd;">(</span><span style="color: #51afef;">0x</span><span style="color: #a9a1e1;">FF</span><span style="color: #51afef;">u</span> &gt;&gt; N<span style="color: #c678dd;">)</span>; <span style="color: #51afef;">}</span>
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #51afef;">template</span><span style="color: #51afef;">&lt;</span><span style="color: #ECBE7B;">int</span> <span style="color: #dcaeea;">N</span><span style="color: #51afef;">&gt;</span>
+<span style="color: #3dea43364a63;"> </span>   simdjson_inline <span style="color: #ECBE7B;">simd8</span><span style="color: #51afef;">&lt;</span><span style="color: #ECBE7B;">uint8_t</span><span style="color: #51afef;">&gt;</span> <span style="color: #c678dd;">shl</span><span style="color: #51afef;">()</span> <span style="color: #51afef;">const</span> <span style="color: #51afef;">{</span> <span style="color: #51afef;">return</span> simd8<span style="color: #c678dd;">&lt;</span><span style="color: #ECBE7B;">uint8_t</span><span style="color: #c678dd;">&gt;(</span>_mm256_slli_epi16<span style="color: #98be65;">(</span>*<span style="color: #51afef;">this</span>, N<span style="color: #98be65;">)</span><span style="color: #c678dd;">)</span> &amp; uint8_t<span style="color: #c678dd;">(</span><span style="color: #51afef;">0x</span><span style="color: #a9a1e1;">FF</span><span style="color: #51afef;">u</span> &lt;&lt; N<span style="color: #c678dd;">)</span>; <span style="color: #51afef;">}</span>
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #5B6268;">// </span><span style="color: #5B6268;">Get one of the bits and make a bitmask out of it.</span>
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #5B6268;">// </span><span style="color: #5B6268;">e.g. value.get_bit&lt;7&gt;() gets the high bit</span>
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #51afef;">template</span><span style="color: #51afef;">&lt;</span><span style="color: #ECBE7B;">int</span> <span style="color: #dcaeea;">N</span><span style="color: #51afef;">&gt;</span>
+<span style="color: #3dea43364a63;"> </span>   simdjson_inline <span style="color: #ECBE7B;">int</span> <span style="color: #c678dd;">get_bit</span><span style="color: #51afef;">()</span> <span style="color: #51afef;">const</span> <span style="color: #51afef;">{</span> <span style="color: #51afef;">return</span> _mm256_movemask_epi8<span style="color: #c678dd;">(</span>_mm256_slli_epi16<span style="color: #98be65;">(</span>*<span style="color: #51afef;">this</span>, <span style="color: #da8548; font-weight: bold;">7</span>-N<span style="color: #98be65;">)</span><span style="color: #c678dd;">)</span>; <span style="color: #51afef;">}</span>
+</pre>
+</div>
+</section>
+<section id="slide-9-2">
+<h3 id="9-2"><span class="section-number-3">9.2.</span> Template Metaprogramming &amp; CRTP vs. Virtual Functions (Dynamic Binding)</h3>
+<ul>
+<li><b><b>Compile-Time Polymorphism with Templates/CRTP:</b></b>
+<ul>
+<li><b><b>Zero-Cost Abstraction:</b></b> The CRTP pattern lets the compiler resolve function calls at compile time.
+<ul>
+<li><p>
+<b>Example from simdjson:</b>
+</p>
+<div class="org-src-container">
+
+<pre class="src src-c++"><span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span>   <span style="color: #51afef;">template</span><span style="color: #51afef;">&lt;</span><span style="color: #51afef;">typename</span> <span style="color: #ECBE7B;">Child</span><span style="color: #51afef;">&gt;</span>
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span>   <span style="color: #51afef;">struct</span> <span style="color: #ECBE7B;">base</span> <span style="color: #51afef;">{</span>
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span> <span style="color: #5B6268;">// </span><span style="color: #5B6268;">Overloaded operator (inline, no vtable overhead)</span>
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span> simdjson_inline <span style="color: #ECBE7B;">Child</span> <span style="color: #51afef;">operator</span><span style="color: #c678dd;">|</span><span style="color: #c678dd;">(</span><span style="color: #51afef;">const</span> <span style="color: #ECBE7B;">Child</span> <span style="color: #dcaeea;">other</span><span style="color: #c678dd;">)</span> <span style="color: #51afef;">const</span> <span style="color: #c678dd;">{</span>
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span>   <span style="color: #51afef;">return</span> _mm256_or_si256<span style="color: #98be65;">(</span>*<span style="color: #51afef;">this</span>, other<span style="color: #98be65;">)</span>;
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span> <span style="color: #c678dd;">}</span>
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span>   <span style="color: #51afef;">}</span>;
+</pre>
+</div></li>
+
+</ul></li>
+<li><b><b>Inlining &amp; Optimization:</b></b> The compiler can inline these functions, reducing function call overhead.</li>
+<li><b><b>No Runtime Indirection:</b></b> Since the dispatch is resolved at compile time, there&rsquo;s no need for a vtable lookup.</li>
+<li><b><b>Drawback:</b></b> Code bloat can occur due to multiple template instantiations, but this is usually an acceptable trade-off in performance‑critical code.</li>
+
+</ul></li>
+
+</ul>
+</section>
+<section id="slide-9-2-1">
+<h4 id="9-2-1"><span class="section-number-4">9.2.1.</span> Dynamic Binding with Virtual Functions</h4>
+<ul>
+<li><b><b>Late Binding:</b></b> Function calls are resolved at runtime via a vtable.
+<ul>
+<li><p>
+<b>Example (the costly alternative):</b>
+</p>
+<div class="org-src-container">
+
+<pre class="src src-c++"><span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span> <span style="color: #51afef;">struct</span> <span style="color: #ECBE7B;">Base</span> <span style="color: #51afef;">{</span>
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span>   <span style="color: #51afef;">virtual</span> <span style="color: #ECBE7B;">void</span> <span style="color: #c678dd;">foo</span><span style="color: #c678dd;">()</span> = <span style="color: #da8548; font-weight: bold;">0</span>;
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span>   <span style="color: #51afef;">virtual</span> ~<span style="color: #c678dd;">Base</span><span style="color: #c678dd;">()</span> = <span style="color: #51afef;">default</span>;
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span> <span style="color: #51afef;">}</span>;
+     
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span> <span style="color: #51afef;">struct</span> <span style="color: #ECBE7B;">Derived</span> : <span style="color: #ECBE7B;">Base</span> <span style="color: #51afef;">{</span>
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span>   <span style="color: #ECBE7B;">void</span> <span style="color: #c678dd;">foo</span><span style="color: #c678dd;">()</span> <span style="color: #51afef;">override</span> <span style="color: #c678dd;">{</span>
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span> <span style="color: #5B6268;">// </span><span style="color: #5B6268;">... implementation ...</span>
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span>   <span style="color: #c678dd;">}</span>
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span> <span style="color: #51afef;">}</span>;
+</pre>
+</div></li>
+
+</ul></li>
+<li><b><b>Runtime Overhead:</b></b>
+<ul>
+<li>Each call incurs an extra indirection (vtable lookup).</li>
+<li>Virtual calls are generally not inlined because the exact function is only known at runtime.</li>
+
+</ul></li>
+<li><b><b>Comparable to Java Interfaces:</b></b>
+<ul>
+<li>In Java, interface methods (or virtual methods) are dispatched at runtime. While a JIT can sometimes inline such calls when it detects hot paths, C++ does not have a JIT and relies entirely on compile‑time optimizations.</li>
+<li>This makes virtual functions in C++ a “costly” alternative when compared to template-based approaches for performance‑critical code.</li>
+
+</ul></li>
+
+</ul>
+</section>
+<section id="slide-9-2-2">
+<h4 id="9-2-2"><span class="section-number-4">9.2.2.</span> Why C++ Chooses Compile-Time Polymorphism</h4>
+<ul>
+<li><b><b>Performance Sensitivity:</b></b> In scenarios like high‑performance parsing (as in simdjson), every extra cycle counts.</li>
+<li><b><b>Deterministic Overhead:</b></b> With templates/CRTP, the performance characteristics are known at compile time—there’s no hidden cost of runtime dispatch.</li>
+<li><b><b>Contrast with Java:</b></b>
+<ul>
+<li>Java’s JIT can optimize away some of the virtual call overhead during runtime, but C++ has to resolve everything during compilation, making it essential to use techniques that yield zero‑overhead abstractions.</li>
+
+</ul></li>
+
+</ul>
+</section>
+<section id="slide-9-3">
+<h3 id="9-3"><span class="section-number-3">9.3.</span> Inline Functions &amp; Compile-Time Inlining</h3>
+<ul>
+<li><b><b>Technique:</b></b> Functions are marked with `simdjson_inline` to encourage inlining.</li>
+<li><b><b>Why?</b></b> Inlining eliminates function call overhead for tiny, frequently used functions.</li>
+<li><b><b>Example from simdjson:</b></b></li>
+
+</ul>
 <div class="org-src-container">
 
 <pre class="src src-c++"><span style="color: #51afef; font-weight: bold;">#elif</span> <span style="color: #51afef; font-weight: bold;">defined</span><span style="color: #51afef;">(</span><span style="color: #a9a1e1;">__GNUC__</span><span style="color: #51afef;">)</span> &amp;&amp; <span style="color: #51afef; font-weight: bold;">!</span><span style="color: #51afef; font-weight: bold;">defined</span><span style="color: #51afef;">(</span><span style="color: #a9a1e1;">__OPTIMIZE__</span><span style="color: #51afef;">)</span>
@@ -2968,223 +3089,311 @@ Instruction: _mm_madd_epi16 (PMADDWD again)
 <span style="color: #3dea43364a63;"> </span> <span style="color: #5B6268;">// </span><span style="color: #5B6268;">unoptimized builds.</span>
 <span style="color: #3dea43364a63;"> </span><span style="color: #51afef; font-weight: bold;"> #define</span> <span style="color: #dcaeea;">simdjson_inline</span> <span style="color: #51afef;">inline</span>
 <span style="color: #51afef; font-weight: bold;">#else</span>
+
+<span style="color: #5B6268;">// </span><span style="color: #5B6268;">Overloaded bitwise OR operator</span>
+simdjson_inline <span style="color: #ECBE7B;">Child</span> <span style="color: #51afef;">operator</span><span style="color: #c678dd;">|</span><span style="color: #51afef;">(</span><span style="color: #51afef;">const</span> <span style="color: #ECBE7B;">Child</span> <span style="color: #dcaeea;">other</span><span style="color: #51afef;">)</span> <span style="color: #51afef;">const</span> <span style="color: #51afef;">{</span>
+<span style="color: #3dea43364a63;"> </span> <span style="color: #51afef;">return</span> _mm256_or_si256<span style="color: #c678dd;">(</span>*<span style="color: #51afef;">this</span>, other<span style="color: #c678dd;">)</span>;
+<span style="color: #51afef;">}</span>
+</pre>
+</div>
+<ul>
+<li><b><b>Note:</b></b> The use of inlining on all small operations (e.g. arithmetic, bitwise operators) ensures maximum performance.</li>
+
+</ul>
+</section>
+<section id="slide-9-4">
+<h3 id="9-4"><span class="section-number-3">9.4.</span> C++ Casts in simdjson: Performance Considerations</h3>
+<ul>
+<li>In high‑performance C++ code, using the proper cast is essential for both safety and speed.</li>
+<li>C++ provides several cast operators:
+<ul>
+<li><b><b>static_cast</b></b>: Compile‑time conversions.</li>
+<li><b><b>reinterpret_cast</b></b>: Low‑level, pointer and bit‑reinterpretation.</li>
+<li><b><b>const_cast</b></b>: Remove constness.</li>
+<li><b><b>dynamic_cast</b></b>: Runtime-checked casts (with RTTI).</li>
+
+</ul></li>
+
+</ul>
+</section>
+<section id="slide-9-4-1">
+<h4 id="9-4-1"><span class="section-number-4">9.4.1.</span> static_cast for CRTP Efficiency</h4>
+<ul>
+<li><b><b>Purpose:</b></b> Convert base pointers to derived types in the Curiously Recurring Template Pattern (CRTP) without runtime overhead.</li>
+<li><b><b>Why?:</b></b> These conversions are known at compile‑time, ensuring zero‑cost abstraction.</li>
+<li><b><b>Example from simdjson:</b></b></li>
+
+</ul>
+<div class="org-src-container">
+
+<pre class="src src-c++"><span style="color: #3dea43364a63;"> </span> <span style="color: #51afef;">template</span><span style="color: #51afef;">&lt;</span><span style="color: #51afef;">typename</span> <span style="color: #ECBE7B;">Child</span><span style="color: #51afef;">&gt;</span>
+<span style="color: #3dea43364a63;"> </span> <span style="color: #51afef;">struct</span> <span style="color: #ECBE7B;">base</span> <span style="color: #51afef;">{</span>
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #ECBE7B;">__m256i</span> <span style="color: #dcaeea;">value</span>;
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #5B6268;">// </span><span style="color: #5B6268;">Overloaded compound assignment using CRTP</span>
+<span style="color: #3dea43364a63;"> </span>   simdjson_inline <span style="color: #ECBE7B;">Child</span>&amp; <span style="color: #51afef;">operator</span><span style="color: #c678dd;">|=</span><span style="color: #c678dd;">(</span><span style="color: #51afef;">const</span> <span style="color: #ECBE7B;">Child</span> <span style="color: #dcaeea;">other</span><span style="color: #c678dd;">)</span> <span style="color: #c678dd;">{</span>
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span> <span style="color: #51afef;">auto</span> <span style="color: #dcaeea;">this_cast</span> = <span style="color: #51afef;">static_cast</span><span style="color: #98be65;">&lt;</span><span style="color: #ECBE7B;">Child</span>*<span style="color: #98be65;">&gt;(</span><span style="color: #51afef;">this</span><span style="color: #98be65;">)</span>;
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span> *this_cast = *this_cast | other;
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span> <span style="color: #51afef;">return</span> *this_cast;
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #c678dd;">}</span>
+<span style="color: #3dea43364a63;"> </span> <span style="color: #51afef;">}</span>;
+</pre>
+</div>
+<ul>
+<li><b><b>Notes:</b></b>
+<ul>
+<li>The `static_cast&lt;Child*&gt;(this)` converts the base class pointer to the derived type.</li>
+<li>This conversion happens entirely at compile time, incurring no runtime cost.</li>
+
+</ul></li>
+
+</ul>
+</section>
+<section id="slide-9-4-2">
+<h4 id="9-4-2"><span class="section-number-4">9.4.2.</span> reinterpret_cast for SIMD Memory Operations</h4>
+<ul>
+<li><b><b>Purpose:</b></b> Reinterpret raw memory (such as an array of bytes) as SIMD register types.</li>
+<li><b><b>Why?:</b></b> When working with intrinsics (e.g. AVX2), you need to treat data as a special type (like `__m256i`), and reinterpret_cast does this with no extra overhead.</li>
+<li><b><b>Examples from simdjson:</b></b>
+<ul>
+<li><b><b>Loading Data:</b></b></li>
+
+</ul></li>
+
+</ul>
+<div class="org-src-container">
+
+<pre class="src src-c++"><span style="color: #3dea43364a63;"> </span> <span style="color: #51afef;">static</span> simdjson_inline <span style="color: #ECBE7B;">simd8</span><span style="color: #51afef;">&lt;</span><span style="color: #ECBE7B;">T</span><span style="color: #51afef;">&gt;</span> <span style="color: #c678dd;">load</span><span style="color: #51afef;">(</span><span style="color: #51afef;">const</span> <span style="color: #ECBE7B;">T</span> <span style="color: #dcaeea;">values</span><span style="color: #c678dd;">[</span><span style="color: #da8548; font-weight: bold;">32</span><span style="color: #c678dd;">]</span><span style="color: #51afef;">)</span> <span style="color: #51afef;">{</span>
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #51afef;">return</span> _mm256_loadu_si256<span style="color: #c678dd;">(</span><span style="color: #51afef;">reinterpret_cast</span><span style="color: #98be65;">&lt;</span><span style="color: #51afef;">const</span> <span style="color: #ECBE7B;">__m256i</span> *<span style="color: #98be65;">&gt;(</span>values<span style="color: #98be65;">)</span><span style="color: #c678dd;">)</span>;
+<span style="color: #3dea43364a63;"> </span> <span style="color: #51afef;">}</span>
+</pre>
+</div>
+<ul>
+<li><b><b>Notes:</b></b>
+<ul>
+<li>These reinterpret_casts allow the compiler to generate efficient SIMD load/store instructions.</li>
+<li>They incur no runtime penalty as they are resolved during compilation.</li>
+
+</ul></li>
+
+</ul>
+</section>
+<section id="slide-9-4-3">
+<h4 id="9-4-3"><span class="section-number-4">9.4.3.</span> Why Not dynamic_cast or const_cast?</h4>
+<ul>
+<li><b><b>dynamic_cast:</b></b>
+<ul>
+<li>Performs runtime type checking and incurs additional overhead.</li>
+<li>Not used in performance-critical paths like simdjson.</li>
+
+</ul></li>
+<li><b><b>const_cast:</b></b>
+<ul>
+<li>Removes constness, but simdjson is designed with const correctness in mind.</li>
+<li>There’s no need to remove constness in this low‑level, performance‑sensitive code.</li>
+
+</ul></li>
+<li><b><b>Summary:</b></b>
+<ul>
+<li>simdjson relies on <b><b>static_cast</b></b> and <b><b>reinterpret_cast</b></b> (plus implicit conversion operators) because they guarantee zero or minimal runtime overhead.</li>
+
+</ul></li>
+
+</ul>
+</section>
+<section id="slide-9-4-4">
+<h4 id="9-4-4"><span class="section-number-4">9.4.4.</span> Summary of Casts in simdjson</h4>
+<ul>
+<li><b><b>static_cast:</b></b>
+<ul>
+<li>Used for compile‑time conversions (e.g. CRTP base-to-derived pointer conversion).</li>
+<li>Zero‑cost and type‑safe.</li>
+
+</ul></li>
+<li><b><b>reinterpret_cast:</b></b>
+<ul>
+<li>Used for pointer re‑interpretation (e.g. converting a byte array to a SIMD register pointer).</li>
+<li>Necessary for interfacing with low‑level intrinsics.</li>
+
+</ul></li>
+<li><b><b>Avoided Casts:</b></b>
+<ul>
+<li><b><b>dynamic_cast</b></b> and <b><b>const_cast</b></b> are not used in performance-critical sections to prevent unnecessary runtime overhead.</li>
+
+</ul></li>
+
+</ul>
+</section>
+<section id="slide-9-5">
+<h3 id="9-5"><span class="section-number-3">9.5.</span> Why Error Codes Outperform Exceptions</h3>
+<ul>
+<li>Zero-cost error handling: No stack unwinding or EH tables</li>
+<li>Better compiler optimizations: Linear control flow</li>
+<li>Predictable branch patterns: CPU pipelining friendly</li>
+<li>Smaller code size: No exception handling metadata</li>
+
+</ul>
+<div class="org-src-container">
+
+<pre class="src src-c++">simdjson_warn_unused <span style="color: #ECBE7B;">error_code</span> <span style="color: #c678dd;">minify</span><span style="color: #51afef;">(</span><span style="color: #51afef;">const</span> <span style="color: #ECBE7B;">uint8_t</span> *<span style="color: #dcaeea;">buf</span>, <span style="color: #ECBE7B;">size_t</span> <span style="color: #dcaeea;">len</span>, <span style="color: #ECBE7B;">uint8_t</span> *<span style="color: #dcaeea;">dst</span>, <span style="color: #ECBE7B;">size_t</span> &amp;<span style="color: #dcaeea;">dst_len</span><span style="color: #51afef;">)</span> <span style="color: #51afef;">const</span> <span style="color: #51afef;">noexcept</span> <span style="color: #51afef;">final</span> <span style="color: #51afef;">{</span>
+<span style="color: #3dea43364a63;"> </span> <span style="color: #51afef;">return</span> set_best<span style="color: #c678dd;">()</span>-&gt;minify<span style="color: #c678dd;">(</span>buf, len, dst, dst_len<span style="color: #c678dd;">)</span>;
+<span style="color: #51afef;">}</span>
 </pre>
 </div>
 </section>
-<section id="slide-9-2">
-<h3 id="9-2"><span class="section-number-3">9.2.</span> static cast</h3>
+<section id="slide-9-5-1">
+<h4 id="9-5-1"><span class="section-number-4">9.5.1.</span> Assembly Comparison: Error Code vs Exception</h4>
+<div class="outline-text-4" id="text-9-5-1">
+</div>
+<ol class="org-ol">
+<li><a id="9-5-1-1"></a>Error Code Path (simdjson style)<br />
 <div class="org-src-container">
 
-<pre class="src src-c++"><span style="color: #51afef;">reinterpret_cast</span> <span style="color: #51afef;">(</span>Used in the <span style="color: #a9a1e1;">SIMD</span> code<span style="color: #51afef;">)</span>:
-
-<span style="color: #51afef;">static</span> simdjson_inline <span style="color: #ECBE7B;">simd8</span><span style="color: #51afef;">&lt;</span><span style="color: #ECBE7B;">T</span><span style="color: #51afef;">&gt;</span> <span style="color: #c678dd;">load</span><span style="color: #51afef;">(</span><span style="color: #51afef;">const</span> <span style="color: #ECBE7B;">T</span> <span style="color: #dcaeea;">values</span><span style="color: #c678dd;">[</span><span style="color: #da8548; font-weight: bold;">32</span><span style="color: #c678dd;">]</span><span style="color: #51afef;">)</span> <span style="color: #51afef;">{</span>
-<span style="color: #3dea43364a63;"> </span>   <span style="color: #51afef;">return</span> _mm256_loadu_si256<span style="color: #c678dd;">(</span><span style="color: #51afef;">reinterpret_cast</span><span style="color: #98be65;">&lt;</span><span style="color: #51afef;">const</span> <span style="color: #ECBE7B;">__m256i</span> *<span style="color: #98be65;">&gt;(</span>values<span style="color: #98be65;">)</span><span style="color: #c678dd;">)</span>;
-<span style="color: #51afef;">}</span>
-
-Zero runtime cost - purely tells compiler to treat bits as different type
-No actual data conversion
-Most dangerous cast - must ensure types are compatible bit-wise
-Common in low-level/<span style="color: #a9a1e1;">SIMD</span> code where you know exact memory layout
+<pre class="src src-asm"><span style="color: #c678dd;">check_ascii</span>:
+<span style="color: #3dea43364a63;"> </span> <span style="color: #51afef;">vptest</span> <span style="color: #dcaeea;">%ymm0</span>, <span style="color: #dcaeea;">%ymm1</span>
+<span style="color: #3dea43364a63;"> </span> <span style="color: #51afef;">jne</span> .error        <span style="color: #5B6268;">; </span><span style="color: #5B6268;">Single conditional branch</span>
+<span style="color: #3dea43364a63;"> </span> <span style="color: #5B6268;">; </span><span style="color: #5B6268;">... normal path ...</span>
+ 
+<span style="color: #c678dd;">.error</span>:
+<span style="color: #3dea43364a63;"> </span> <span style="color: #51afef;">mov</span> eax, <span style="color: #da8548; font-weight: bold;">1</span>        <span style="color: #5B6268;">; </span><span style="color: #5B6268;">Set error code</span>
+<span style="color: #3dea43364a63;"> </span> <span style="color: #51afef;">ret</span>
 </pre>
 </div>
-
+</li>
+<li><a id="9-5-1-2"></a>Exception Path<br />
 <div class="org-src-container">
 
-<pre class="src src-c++"><span style="color: #51afef;">template</span> <span style="color: #51afef;">&lt;</span><span style="color: #51afef;">typename</span> <span style="color: #ECBE7B;">Child</span><span style="color: #51afef;">&gt;</span> <span style="color: #51afef;">struct</span> <span style="color: #ECBE7B;">base</span> <span style="color: #51afef;">{</span>
-<span style="color: #3dea43364a63;"> </span> <span style="color: #ECBE7B;">__m256i</span> <span style="color: #dcaeea;">value</span>;
+<pre class="src src-asm"><span style="color: #c678dd;">check_ascii</span>:
+<span style="color: #3dea43364a63;"> </span> <span style="color: #51afef;">vptest</span> <span style="color: #dcaeea;">%ymm0</span>, <span style="color: #dcaeea;">%ymm1</span>
+<span style="color: #3dea43364a63;"> </span> <span style="color: #51afef;">jne</span> .exception
+<span style="color: #3dea43364a63;"> </span> <span style="color: #5B6268;">; </span><span style="color: #5B6268;">... normal path ...</span>
  
-<span style="color: #3dea43364a63;"> </span> <span style="color: #5B6268;">// </span><span style="color: #5B6268;">This cast gets resolved at compile time with no runtime overhead</span>
-<span style="color: #3dea43364a63;"> </span> <span style="color: #ECBE7B;">simdjson_inline</span> <span style="color: #51afef;">operator</span> <span style="color: #51afef;">const</span> <span style="color: #ECBE7B;">__m256i</span> &amp;<span style="color: #c678dd;">()</span> <span style="color: #51afef;">const</span> <span style="color: #c678dd;">{</span> <span style="color: #51afef;">return</span> <span style="color: #51afef;">this</span>-&gt;value; <span style="color: #c678dd;">}</span>
- 
-<span style="color: #3dea43364a63;"> </span> <span style="color: #5B6268;">// </span><span style="color: #5B6268;">The Child type is known at compile time</span>
-<span style="color: #3dea43364a63;"> </span> <span style="color: #ECBE7B;">simdjson_inline</span> <span style="color: #ECBE7B;">Child</span> <span style="color: #51afef;">operator</span><span style="color: #c678dd;">|</span><span style="color: #c678dd;">(</span><span style="color: #51afef;">const</span> <span style="color: #ECBE7B;">Child</span> <span style="color: #dcaeea;">other</span><span style="color: #c678dd;">)</span> <span style="color: #51afef;">const</span> <span style="color: #c678dd;">{</span>
-<span style="color: #3dea43364a63;"> </span>   <span style="color: #51afef;">return</span> _mm256_or_si256<span style="color: #98be65;">(</span>*<span style="color: #51afef;">this</span>, other<span style="color: #98be65;">)</span>;
+<span style="color: #c678dd;">.exception</span>:
+<span style="color: #3dea43364a63;"> </span> <span style="color: #51afef;">call</span> __cxa_allocate_exception  <span style="color: #5B6268;">; </span><span style="color: #5B6268;">Heavy EH machinery</span>
+<span style="color: #3dea43364a63;"> </span> <span style="color: #5B6268;">; </span><span style="color: #5B6268;">... stack unwinding setup ...</span>
+</pre>
+</div>
+</li>
+</ol>
+</section>
+<section id="slide-9-5-2">
+<h4 id="9-5-2"><span class="section-number-4">9.5.2.</span> Key Performance Factors</h4>
+<ol>
+<li><b><b>No EH Table Overhead</b></b>
+<ul>
+<li>Exception handling requires RTTI and stack unwinding tables</li>
+<li>Increases binary size by ~10-15% in our benchmarks</li>
+
+</ul></li>
+
+<li><b><b>CPU Branch Prediction</b></b>
+<ul>
+<li>Error codes use simple conditional branches
+<ul>
+<li>Exceptions create unpredictable control flow</li>
+
+</ul></li>
+
+</ul></li>
+
+<li><b><b>Inlining Friendly</b></b>
+<ul>
+<li>Error return paths don&rsquo;t inhibit function inlining</li>
+<li>Critical for SIMD optimizations:</li>
+
+</ul></li>
+
+</ol>
+</section>
+<section id="slide-9-6">
+<h3 id="9-6"><span class="section-number-3">9.6.</span> Memory Alignment &amp; Padding</h3>
+<ul>
+<li>Correct memory alignment (and extra padding) is crucial for SIMD operations; unaligned accesses can severely hurt performance.</li>
+<li>simdjson uses types such as padded_string and padded_string_view to guarantee ample padding.</li>
+<li>Example from the padded string view helper:</li>
+
+</ul>
+<div class="org-src-container">
+
+<pre class="src src-cpp"><span style="color: #a9a1e1;">simdjson</span>::<span style="color: #ECBE7B;">padded_string_view</span> <span style="color: #c678dd;">get_padded_string_view</span><span style="color: #51afef;">(</span><span style="color: #51afef;">const</span> <span style="color: #ECBE7B;">char</span> *<span style="color: #dcaeea;">buf</span>, <span style="color: #ECBE7B;">size_t</span> <span style="color: #dcaeea;">len</span>,
+<span style="color: #3dea43364a63;"> </span>                                                  <span style="color: #a9a1e1;">simdjson</span>::<span style="color: #ECBE7B;">padded_string</span> &amp;<span style="color: #dcaeea;">jsonbuffer</span><span style="color: #51afef;">)</span> <span style="color: #51afef;">{</span>
+<span style="color: #3dea43364a63;"> </span> <span style="color: #51afef;">if</span> <span style="color: #c678dd;">(</span>need_allocation<span style="color: #98be65;">(</span>buf, len<span style="color: #98be65;">)</span><span style="color: #c678dd;">)</span> <span style="color: #c678dd;">{</span> <span style="color: #5B6268;">// </span><span style="color: #5B6268;">unlikely case</span>
+<span style="color: #3dea43364a63;"> </span>   jsonbuffer = <span style="color: #a9a1e1;">simdjson</span>::padded_string<span style="color: #98be65;">(</span>buf, len<span style="color: #98be65;">)</span>;
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #51afef;">return</span> jsonbuffer;
+<span style="color: #3dea43364a63;"> </span> <span style="color: #c678dd;">}</span> <span style="color: #51afef;">else</span> <span style="color: #c678dd;">{</span> <span style="color: #5B6268;">// </span><span style="color: #5B6268;">no allocation needed (most common)</span>
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #51afef;">return</span> <span style="color: #a9a1e1;">simdjson</span>::padded_string_view<span style="color: #98be65;">(</span>buf, len, len + <span style="color: #a9a1e1;">simdjson</span>::<span style="color: #a9a1e1;">SIMDJSON_PADDING</span><span style="color: #98be65;">)</span>;
 <span style="color: #3dea43364a63;"> </span> <span style="color: #c678dd;">}</span>
 <span style="color: #51afef;">}</span>
 </pre>
 </div>
-
-<div class="org-src-container">
-
-<pre class="src src-c++"><span style="color: #5B6268;">// </span><span style="color: #5B6268;">With dynamic (runtime) casting:</span>
-<span style="color: #51afef;">class</span> <span style="color: #ECBE7B;">Base</span> <span style="color: #51afef;">{</span> <span style="color: #51afef;">virtual</span> ~<span style="color: #c678dd;">Base</span><span style="color: #c678dd;">()</span> <span style="color: #c678dd;">{}</span> <span style="color: #51afef;">}</span>;
-<span style="color: #51afef;">class</span> <span style="color: #ECBE7B;">Derived</span> : <span style="color: #51afef;">public</span> <span style="color: #ECBE7B;">Base</span> <span style="color: #51afef;">{</span> <span style="color: #51afef;">}</span>;
-
-<span style="color: #ECBE7B;">void</span> <span style="color: #c678dd;">process</span><span style="color: #51afef;">(</span><span style="color: #ECBE7B;">Base</span>* <span style="color: #dcaeea;">ptr</span><span style="color: #51afef;">)</span> <span style="color: #51afef;">{</span>
-<span style="color: #3dea43364a63;"> </span>   <span style="color: #ECBE7B;">Derived</span>* <span style="color: #dcaeea;">d</span> = <span style="color: #51afef;">dynamic_cast</span><span style="color: #c678dd;">&lt;</span><span style="color: #ECBE7B;">Derived</span>*<span style="color: #c678dd;">&gt;(</span>ptr<span style="color: #c678dd;">)</span>;  <span style="color: #5B6268;">// </span><span style="color: #5B6268;">Runtime check</span>
-<span style="color: #3dea43364a63;"> </span>   <span style="color: #51afef;">if</span><span style="color: #c678dd;">(</span>d<span style="color: #c678dd;">)</span> <span style="color: #c678dd;">{</span> <span style="color: #5B6268;">/* </span><span style="color: #5B6268;">use d</span><span style="color: #5B6268;"> */</span> <span style="color: #c678dd;">}</span>
-<span style="color: #51afef;">}</span>
-
-<span style="color: #5B6268;">// </span><span style="color: #5B6268;">With static (compile-time) casting like simdjson:</span>
-<span style="color: #51afef;">template</span> <span style="color: #51afef;">&lt;</span><span style="color: #51afef;">typename</span> <span style="color: #ECBE7B;">T</span><span style="color: #51afef;">&gt;</span>
-<span style="color: #51afef;">struct</span> <span style="color: #ECBE7B;">base</span> <span style="color: #51afef;">{</span>
-<span style="color: #3dea43364a63;"> </span>   <span style="color: #ECBE7B;">T</span>* <span style="color: #c678dd;">as_child</span><span style="color: #c678dd;">()</span> <span style="color: #c678dd;">{</span>
-<span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span>   <span style="color: #51afef;">return</span> <span style="color: #51afef;">static_cast</span><span style="color: #98be65;">&lt;</span><span style="color: #ECBE7B;">T</span>*<span style="color: #98be65;">&gt;(</span><span style="color: #51afef;">this</span><span style="color: #98be65;">)</span>;  <span style="color: #5B6268;">// </span><span style="color: #5B6268;">No runtime check needed</span>
-<span style="color: #3dea43364a63;"> </span>   <span style="color: #c678dd;">}</span>
-<span style="color: #51afef;">}</span>;
-
-<span style="color: #51afef;">struct</span> <span style="color: #ECBE7B;">derived</span> : <span style="color: #ECBE7B;">base</span><span style="color: #51afef;">&lt;</span><span style="color: #ECBE7B;">derived</span><span style="color: #51afef;">&gt;</span> <span style="color: #51afef;">{</span>
-<span style="color: #51afef;">}</span>;
-
-<span style="color: #ECBE7B;">void</span> <span style="color: #c678dd;">process</span><span style="color: #51afef;">(</span><span style="color: #ECBE7B;">derived</span>&amp; <span style="color: #dcaeea;">d</span><span style="color: #51afef;">)</span> <span style="color: #51afef;">{</span>
-<span style="color: #3dea43364a63;"> </span>   <span style="color: #5B6268;">// </span><span style="color: #5B6268;">Compiler knows exact type, no checks needed</span>
-<span style="color: #3dea43364a63;"> </span>   <span style="color: #51afef;">auto</span>* <span style="color: #dcaeea;">ptr</span> = d.as_child<span style="color: #c678dd;">()</span>;  <span style="color: #5B6268;">// </span><span style="color: #5B6268;">Compiles to essentially nothing</span>
-<span style="color: #51afef;">}</span>
-</pre>
-</div>
-<p>
-Dynamic casting needs runtime type information (RTTI) and checks
-Static casting is just the compiler calculating new memory addresses
-Static casting can often be optimized away entirely
-No runtime overhead for type safety with static casting
-</p>
-
-<p>
-Compile to essentially the same assembly as if you had written the operations directly on the raw types - there&rsquo;s no casting overhead in the final machine code.
-</p>
 </section>
-<section id="slide-9-2-1">
-<h4 id="9-2-1"><span class="section-number-4">9.2.1.</span> about virtual functions</h4>
-<p>
-early and late binding
-</p>
+<section id="slide-9-7">
+<h3 id="9-7"><span class="section-number-3">9.7.</span> Loop Unrolling and Vectorized Processing</h3>
+<ul>
+<li><b><b>Key idea:</b></b> Unroll loops to manually do more things in one loop</li>
+
+</ul>
 <div class="org-src-container">
 
-<pre class="src src-text">Key differences and use cases:
-
-Regular Functions:
-
-
-Faster performance (direct function call)
-Smaller object size (no vtable pointer)
-Binding decided at compile time
-Used when you want static/fixed behavior
-Used when performance is critical (like in simdjson)
-
-
-Virtual Functions:
-
-
-Runtime polymorphism (behavior can change based on actual object type)
-Allows for interface-based programming
-Enables "plugin" or extensible architectures
-Used when you need flexibility and dynamic behavior
-Common in frameworks and large-scale OOP designs
+<pre class="src src-c++"><span style="color: #ECBE7B;">void</span> <span style="color: #c678dd;">extract_set_bits_optimized</span><span style="color: #51afef;">(</span><span style="color: #ECBE7B;">uint64_t</span> <span style="color: #dcaeea;">bitset</span>, <span style="color: #ECBE7B;">uint32_t</span>* <span style="color: #dcaeea;">output</span><span style="color: #51afef;">)</span> <span style="color: #51afef;">{</span>
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #5B6268;">// </span><span style="color: #5B6268;">Get total number of set bits</span>
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #ECBE7B;">uint32_t</span> <span style="color: #dcaeea;">count</span> = __builtin_popcountll<span style="color: #c678dd;">(</span>bitset<span style="color: #c678dd;">)</span>;
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #ECBE7B;">uint32_t</span>* <span style="color: #dcaeea;">next_base</span> = output + count;
+ 
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #5B6268;">// </span><span style="color: #5B6268;">Process 8 bits at a time unconditionally</span>
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #51afef;">while</span> <span style="color: #c678dd;">(</span>bitset<span style="color: #c678dd;">)</span> <span style="color: #c678dd;">{</span>
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span>   <span style="color: #5B6268;">// </span><span style="color: #5B6268;">Extract next 8 set bit positions, even if we don't have 8 bits</span>
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span>   *output++ = __builtin_ctzll<span style="color: #98be65;">(</span>bitset<span style="color: #98be65;">)</span>;
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span>   bitset &amp;= <span style="color: #98be65;">(</span>bitset - <span style="color: #da8548; font-weight: bold;">1</span><span style="color: #98be65;">)</span>;  <span style="color: #5B6268;">// </span><span style="color: #5B6268;">Clear lowest set bit (blsr instruction)</span>
+     
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span>   *output++ = __builtin_ctzll<span style="color: #98be65;">(</span>bitset<span style="color: #98be65;">)</span>;
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span>   bitset &amp;= <span style="color: #98be65;">(</span>bitset - <span style="color: #da8548; font-weight: bold;">1</span><span style="color: #98be65;">)</span>;
 </pre>
 </div>
 </section>
-<section id="slide-9-3">
-<h3 id="9-3"><span class="section-number-3">9.3.</span> simd8</h3>
-<p>
-Let me explain the CRTP (Curiously Recurring Template Pattern) being used in this code:
-</p>
-
-<p>
-```cpp
-// Base template
-template &lt;typename Child&gt; struct base {
-    __m256i value;
-</p>
-
-<p>
-// The base class methods use Child type
-simdjson_inline Child operator|(const Child other) const {
-    return _mm256_or_si256(*this, other);
-}
-</p>
-
-<p>
-    // Uses static_cast to Child
-    simdjson_inline Child &amp;operator|=(const Child other) {
-        auto this_cast = static_cast&lt;Child *&gt;(this);
-        *this_cast = *this_cast | other;
-        return *this_cast;
-    }
-};
-</p>
-
-<p>
-<i>/ Child class that inherits from base with itself as template parameter
-struct simd8&lt;uint8_t&gt; : base8_numeric&lt;uint8_t&gt; {
-    /</i> Implementation specific to uint8_t
-};
-```
-</p>
-
-<p>
-Key aspects:
-</p>
-
-<ol>
-<li>Static Polymorphism</li>
-<li>No virtual functions - everything resolved at compile time</li>
-<li>Child type is known in base class methods</li>
-<li>Compiler can inline and optimize everything</li>
-
-<li>Type Safety</li>
-
-</ol>
-<p>
-```cpp
-simdjson_inline Child operator|(const Child other) const {
-    return _mm256_or_si256(*this, other);
-}
-```
-</p>
+<section id="slide-9-8">
+<h3 id="9-8"><span class="section-number-3">9.8.</span> Runtime CPU Dispatching</h3>
 <ul>
-<li>Return type is correct derived class</li>
-<li>Arguments must match derived class type</li>
-<li>Caught at compile time if types don&rsquo;t match</li>
-
-<li>Static Casting</li>
+<li>Instead of compiling separate binaries for different architectures, simdjson selects the best implementation at runtime.</li>
+<li>By using functions like get_active_implementation(), it dynamically chooses the fastest SIMD path available.</li>
+<li>Example:</li>
 
 </ul>
-<p>
-```cpp
-auto this_cast = static_cast&lt;Child *&gt;(this);
-```
-</p>
-<ul>
-<li>Safe because Child is guaranteed to be derived class</li>
-<li>No runtime overhead - resolved at compile time</li>
-<li>Allows access to derived class methods/members</li>
+<div class="org-src-container">
 
-<li>Inheritance Chain Example:</li>
+<pre class="src src-cpp">cout &lt;&lt; <span style="color: #98be65;">"Active implementation: "</span>
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span>&lt;&lt; <span style="color: #a9a1e1;">simdjson</span>::get_active_implementation<span style="color: #51afef;">()</span>-&gt;name<span style="color: #51afef;">()</span> &lt;&lt; endl;
+</pre>
+</div>
+</section>
+<section id="slide-9-9">
+<h3 id="9-9"><span class="section-number-3">9.9.</span> Avoiding Unnecessary Allocations</h3>
+<ul>
+<li>Reusing pre-allocated buffers improves cache locality and reduces repeated allocation overhead.</li>
+<li>simdjson’s parser retains internal buffers between parses, so the expensive memory allocation is done only once.</li>
 
 </ul>
-<p>
-```cpp
-base&lt;simd8&lt;uint8_t&gt;&gt;     <i>/ Base template
-    ↑
-base8&lt;uint8_t&gt;          /</i> Adds common SIMD operations
-    ↑
-base8_numeric&lt;uint8_t&gt;  <i>/ Adds numeric operations
-    ↑
-simd8&lt;uint8_t&gt;         /</i> Final implementation
-```
-</p>
+</section>
+<section id="slide-9-10">
+<h3 id="9-10"><span class="section-number-3">9.10.</span> Compiler Directives &amp; Special Build Flags</h3>
+<ul>
+<li>Compiler flags (for instance, -O3 or -march=native) and specific macros are key to unlocking peak performance.</li>
 
-<ol>
-<li>Benefits in this Code:</li>
-<li>Zero overhead abstraction</li>
-<li>Type-safe SIMD operations</li>
-<li>Reuse of common SIMD code</li>
-<li>Specialized implementations where needed</li>
-<li>Compile-time polymorphism</li>
+</ul>
+</section>
+<section id="slide-9-11">
+<h3 id="9-11"><span class="section-number-3">9.11.</span> C++ optimizations summary</h3>
+<ul>
+<li>Zero cost abstractions</li>
+<li>inline functions and casting</li>
+<li>Error code over exceptions</li>
+<li>memory and loop optimizations</li>
 
-</ol>
-
-<p>
-This pattern is particularly useful for SIMD code because:
-</p>
-<ol>
-<li>You want zero runtime overhead</li>
-<li>Operations are known at compile time</li>
-<li>Type safety is important</li>
-<li>Code reuse across different SIMD types</li>
-<li>Specialized implementations for different types</li>
-
-</ol>
+</ul>
+</section>
+</section>
+<section>
+<section id="slide-10">
+<h2 id="10"><span class="section-number-2">10.</span> Thank you</h2>
 </section>
 </section>
 </div>
