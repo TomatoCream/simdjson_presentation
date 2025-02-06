@@ -17,7 +17,7 @@
 <div class="reveal">
 <div class="slides">
 <section id="sec-title-slide">
-<h1 class="title">Parsing Gigabytes of JSON per Second</h1><h2 class="author">Wong Ding Feng</h2><p class="date">Created: 2025-02-06 Thu 22:31</p>
+<h1 class="title">Parsing Gigabytes of JSON per Second</h1><h2 class="author">Wong Ding Feng</h2><p class="date">Created: 2025-02-06 Thu 23:59</p>
 </section>
 <section id="table-of-contents-section">
 <div id="table-of-contents" role="doc-toc">
@@ -155,7 +155,7 @@ One core can read direct text at this speed:
 
 </ul>
 
-<div id="orgdffb845" class="figure">
+<div id="org5490556" class="figure">
 <p><img src="https://arxiv.org/html/1902.08318v7/x1.png" alt="x1.png" style="background-color: white;" />
 </p>
 </div>
@@ -163,7 +163,7 @@ One core can read direct text at this speed:
 <section id="slide-2-4">
 <h3 id="2-4"><span class="section-number-3">2.4.</span> Against others</h3>
 
-<div id="orgab1c4b0" class="figure">
+<div id="orga2fadbf" class="figure">
 <p><img src="https://arxiv.org/html/1902.08318v7/x3.png" alt="x3.png" style="background-color: white;" />
 </p>
 </div>
@@ -171,7 +171,7 @@ One core can read direct text at this speed:
 <section id="slide-2-5">
 <h3 id="2-5"><span class="section-number-3">2.5.</span> On demand json</h3>
 
-<div id="org1acdcfd" class="figure">
+<div id="org0f23072" class="figure">
 <p><img src="https://arxiv.org/html/2312.17149v3/x1.png" alt="x1.png" style="background-color: white;" />
 </p>
 </div>
@@ -595,7 +595,7 @@ This is just simply the ascii code table, quite sure we are all very familiar wi
 
 </ul>
 
-<div id="org572dcb2" class="figure">
+<div id="org2910084" class="figure">
 <p><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/4c/USASCII_code_chart.svg/1280px-USASCII_code_chart.svg.png" alt="1280px-USASCII_code_chart.svg.png" style="background-color: white;" />
 </p>
 </div>
@@ -756,14 +756,14 @@ how does simd fit into all of this?
 <section id="slide-5-1">
 <h3 id="5-1"><span class="section-number-3">5.1.</span> What is simd</h3>
 
-<div id="org21b74f3" class="figure">
+<div id="orgaa9740e" class="figure">
 <p><img src="https://pep-root6.github.io/docs/analysis/simd.png" alt="simd.png" />
 </p>
 </div>
 </section>
 <section id="slide-5-2">
 <h3 id="5-2"><span class="section-number-3">5.2.</span> SIMD example</h3>
-<pre class="example" id="org353d356">
+<pre class="example" id="orgd8c72f7">
 Adding 4 numbers simultaneously:
 
 Scalar:
@@ -849,7 +849,7 @@ Ice Lake uses 512-bit AVX-512 instructions (_mm512_shuffle_epi8)
 <li>High throughput</li>
 
 </ul>
-<pre class="example" id="org7903776">
+<pre class="example" id="org90b6956">
 Perfect for SIMD:
 [1|2|3|4] × 2  = [2 |4 |6 |8 ] ✓
 [R|G|B|A] + 10 = [R'|G'|B'|A'] ✓
@@ -1104,7 +1104,7 @@ I&rsquo;ll just talk abit about how optimizations even work in the first place.
 
 </aside>
 
-<div id="orgfb25c41" class="figure">
+<div id="org27f2bd6" class="figure">
 <p><img src="https://llvm.org/img/LLVMWyvernSmall.png" alt="LLVMWyvernSmall.png" />
 </p>
 </div>
@@ -1283,7 +1283,7 @@ this is the computation graph of the IR in front
 
 </aside>
 
-<div id="orgf349c5c" class="figure">
+<div id="org8168d67" class="figure">
 <p><img src="attachments/unoptimized-ir.png" alt="unoptimized-ir.png" />
 </p>
 </div>
@@ -1326,7 +1326,7 @@ with deadcode eliminated
 
 </aside>
 
-<div id="orge4227fb" class="figure">
+<div id="orgfe651b4" class="figure">
 <p><img src="attachments/optimized-ir.png" alt="optimized-ir.png" />
 </p>
 </div>
@@ -1745,7 +1745,7 @@ hashing function is a fake O(1)
 </section>
 <section id="slide-7-1-4">
 <h4 id="7-1-4"><span class="section-number-4">7.1.4.</span> Simple example</h4>
-<pre class="example" id="org102ac8c">
+<pre class="example" id="org977c8d3">
 "LF:"
 
 Low nibble table
@@ -2859,7 +2859,7 @@ So there are 2 things to check, less than 0x30 which is 0x2F up here
 <li>Let&rsquo;s take valid input &ldquo;12345678&rdquo;:</li>
 
 </ul>
-<pre class="example" id="orgdf9e7bd">
+<pre class="example" id="orgebbc203">
 Input bytes:    31 32 33 34 35 36 37 38
                 || || || || || || || ||
                 v| v| v| v| v| v| v| v|
@@ -2887,7 +2887,7 @@ Result1:        30 30 30 30 30 30 30 30
 </section>
 <section id="slide-8-2-5">
 <h4 id="8-2-5"><span class="section-number-4">8.2.5.</span> Case 1: Valid Digit (0x39 = &rsquo;9&rsquo;)</h4>
-<pre class="example" id="org8262ed6">
+<pre class="example" id="org208b847">
 0x39 = 0011 1001  (Original value '9')
 0x06 = 0000 0110  (Value we add)
       -----------
@@ -2906,7 +2906,7 @@ After right shift by 4:
 </section>
 <section id="slide-8-2-6">
 <h4 id="8-2-6"><span class="section-number-4">8.2.6.</span> Case 2: Invalid Character (0x3A = &rsquo;:&rsquo;)</h4>
-<pre class="example" id="org429aeee">
+<pre class="example" id="org9e434cb">
 0x3A = 0011 1010  (Original value ':')
 0x06 = 0000 0110  (Value we add)
       -----------
@@ -2934,7 +2934,7 @@ After right shift by 4:
 </section>
 <section id="slide-8-2-7">
 <h4 id="8-2-7"><span class="section-number-4">8.2.7.</span> Step 2: Add 0x06 to detect non-digits</h4>
-<pre class="example" id="org5385fdb">
+<pre class="example" id="orgfe7533b">
 Low nibbles:    1  2  3  4  5  6  7  8
 Add 0x06:       7  8  9  A  B  C  D  E
                 ^  ^  ^  ^  ^  ^  ^  ^
@@ -2948,7 +2948,7 @@ If original &gt; 9: Carry affects high nibble
 <p>
 Take &ldquo;12345678&rdquo;:
 </p>
-<pre class="example" id="orgd407010">
+<pre class="example" id="org17535fa">
 
 Original:       31 32 33 34 35 36 37 38
                 v  v  v  v  v  v  v  v
@@ -2969,7 +2969,7 @@ OR together:    33 33 33 33 33 33 33 33
 <p>
 Take &ldquo;1234;678&rdquo;:
 </p>
-<pre class="example" id="orgf2e65ad">
+<pre class="example" id="org2504da7">
 Original:       31 32 33 34 3B 36 37 38
 After +0x06:    37 38 39 3A 41 3C 3D 3E
                                ^
@@ -3020,7 +3020,7 @@ OR together:    33 33 33 33 34 33 33 33 ≠ 0x3333...
 </section>
 <section id="slide-8-2-11">
 <h4 id="8-2-11"><span class="section-number-4">8.2.11.</span> Valid Cases</h4>
-<pre class="example" id="org573691b">
+<pre class="example" id="org7f35e43">
 "00000000" -&gt; 0x3333333333333333 ✓
 "99999999" -&gt; 0x3333333333333333 ✓
 "12345678" -&gt; 0x3333333333333333 ✓
@@ -3028,7 +3028,7 @@ OR together:    33 33 33 33 34 33 33 33 ≠ 0x3333...
 </section>
 <section id="slide-8-2-12">
 <h4 id="8-2-12"><span class="section-number-4">8.2.12.</span> Invalid Cases</h4>
-<pre class="example" id="org0654f5e">
+<pre class="example" id="org58cddc5">
 "A" (0x41):
 Original:  41
 +0x06:     47
@@ -3093,7 +3093,7 @@ Example: &ldquo;12345678&rdquo; -&gt; 12345678
 </pre>
 </div>
 
-<pre class="example" id="orgb63c706">
+<pre class="example" id="org00af6fd">
 Input:          "12345678"
 ASCII values:   31 32 33 34 35 36 37 38
 Subtract:       30 30 30 30 30 30 30 30
@@ -3110,7 +3110,7 @@ Instruction:    _mm_sub_epi8 (PSUBB - packed subtract bytes)
 <span style="color: #3dea43364a63;"> </span> <span style="color: #ECBE7B;">__m128i</span> <span style="color: #dcaeea;">t1</span> = _mm_maddubs_epi16<span style="color: #51afef;">(</span>in, mul_1_10<span style="color: #51afef;">)</span>;
 </pre>
 </div>
-<pre class="example" id="orgaaf4628">
+<pre class="example" id="orgdac9fa6">
 Values:         1  2  3  4  5  6  7  8
 Multipliers:   10  1 10  1 10  1 10  1
                 |  |  |  |  |  |  |  |
@@ -3135,7 +3135,7 @@ what is the next step ?
 <span style="color: #3dea43364a63;"> </span> <span style="color: #ECBE7B;">__m128i</span> <span style="color: #dcaeea;">t2</span> = _mm_madd_epi16<span style="color: #51afef;">(</span>t1, mul_1_100<span style="color: #51afef;">)</span>;
 </pre>
 </div>
-<pre class="example" id="orgac30a03">
+<pre class="example" id="orgacb39af">
 Values:        12   34   56   78
 Multipliers:  100    1  100    1
                 |    |    |    |
@@ -3172,7 +3172,7 @@ Instruction: _mm_madd_epi16 (PMADDWD - multiply and add packed words)
 <span style="color: #3dea43364a63;"> </span> <span style="color: #ECBE7B;">__m128i</span> <span style="color: #dcaeea;">t3</span> = _mm_packus_epi32<span style="color: #51afef;">(</span>t2, t2<span style="color: #51afef;">)</span>;
 </pre>
 </div>
-<pre class="example" id="org3ee87cc">
+<pre class="example" id="orgcb9a69e">
 Before:   1234(32-bit)  5678(32-bit)
 After:    1234(16-bit)  5678(16-bit)
 
@@ -3187,7 +3187,7 @@ Instruction: _mm_packus_epi32 (PACKUSDW - pack with unsigned saturation)
 <span style="color: #3dea43364a63;"> </span> <span style="color: #ECBE7B;">__m128i</span> <span style="color: #dcaeea;">t4</span> = _mm_madd_epi16<span style="color: #51afef;">(</span>t3, mul_1_10000<span style="color: #51afef;">)</span>;
 </pre>
 </div>
-<pre class="example" id="orgc5c7865">
+<pre class="example" id="org7d8ba35">
 Values:        1234     5678
 Multipliers:  10000        1
                   |        |
