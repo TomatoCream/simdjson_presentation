@@ -10,13 +10,14 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js/dist/reveal.css"/>
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js/dist/theme/moon.css" id="theme"/>
+<style> .reveal { font-size: 32px; } .reveal .slides { margin: 0.5em; } </style>
 <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
 </head>
 <body>
 <div class="reveal">
 <div class="slides">
 <section id="sec-title-slide">
-<h1 class="title">Parsing Gigabytes of JSON per Second</h1><h2 class="author">Wong Ding Feng</h2><p class="date">Created: 2025-02-03 Mon 01:02</p>
+<h1 class="title">Parsing Gigabytes of JSON per Second</h1><h2 class="author">Wong Ding Feng</h2><p class="date">Created: 2025-02-06 Thu 17:36</p>
 </section>
 <section id="table-of-contents-section">
 <div id="table-of-contents" role="doc-toc">
@@ -154,7 +155,7 @@ One core can read direct text at this speed:
 
 </ul>
 
-<div id="org6433284" class="figure">
+<div id="org9008bac" class="figure">
 <p><img src="https://arxiv.org/html/1902.08318v7/x1.png" alt="x1.png" style="background-color: white;" />
 </p>
 </div>
@@ -162,7 +163,7 @@ One core can read direct text at this speed:
 <section id="slide-2-4">
 <h3 id="2-4"><span class="section-number-3">2.4.</span> Against others</h3>
 
-<div id="org066cd53" class="figure">
+<div id="org5a506b3" class="figure">
 <p><img src="https://arxiv.org/html/1902.08318v7/x3.png" alt="x3.png" style="background-color: white;" />
 </p>
 </div>
@@ -170,7 +171,7 @@ One core can read direct text at this speed:
 <section id="slide-2-5">
 <h3 id="2-5"><span class="section-number-3">2.5.</span> On demand json</h3>
 
-<div id="org08f5715" class="figure">
+<div id="org31a7194" class="figure">
 <p><img src="https://arxiv.org/html/2312.17149v3/x1.png" alt="x1.png" style="background-color: white;" />
 </p>
 </div>
@@ -594,7 +595,7 @@ This is just simply the ascii code table, quite sure we are all very familiar wi
 
 </ul>
 
-<div id="orge84673c" class="figure">
+<div id="org6bb6ab3" class="figure">
 <p><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/4c/USASCII_code_chart.svg/1280px-USASCII_code_chart.svg.png" alt="1280px-USASCII_code_chart.svg.png" style="background-color: white;" />
 </p>
 </div>
@@ -755,14 +756,14 @@ how does simd fit into all of this?
 <section id="slide-5-1">
 <h3 id="5-1"><span class="section-number-3">5.1.</span> What is simd</h3>
 
-<div id="org61301b8" class="figure">
+<div id="orgef5f73c" class="figure">
 <p><img src="https://pep-root6.github.io/docs/analysis/simd.png" alt="simd.png" />
 </p>
 </div>
 </section>
 <section id="slide-5-2">
 <h3 id="5-2"><span class="section-number-3">5.2.</span> SIMD example</h3>
-<pre class="example" id="org323062a">
+<pre class="example" id="orgc29b6e9">
 Adding 4 numbers simultaneously:
 
 Scalar:
@@ -848,7 +849,7 @@ Ice Lake uses 512-bit AVX-512 instructions (_mm512_shuffle_epi8)
 <li>High throughput</li>
 
 </ul>
-<pre class="example" id="org45feb56">
+<pre class="example" id="orga91b19f">
 Perfect for SIMD:
 [1|2|3|4] × 2  = [2 |4 |6 |8 ] ✓
 [R|G|B|A] + 10 = [R'|G'|B'|A'] ✓
@@ -1065,7 +1066,7 @@ I&rsquo;ll just talk abit about how optimizations even work in the first place.
 
 </aside>
 
-<div id="org3514e5d" class="figure">
+<div id="orgc66b083" class="figure">
 <p><img src="https://llvm.org/img/LLVMWyvernSmall.png" alt="LLVMWyvernSmall.png" />
 </p>
 </div>
@@ -1244,7 +1245,7 @@ this is the computation graph of the IR in front
 
 </aside>
 
-<div id="org136dc5c" class="figure">
+<div id="org3e80e1a" class="figure">
 <p><img src="attachments/unoptimized-ir.png" alt="unoptimized-ir.png" />
 </p>
 </div>
@@ -1287,7 +1288,7 @@ with deadcode eliminated
 
 </aside>
 
-<div id="orgfead992" class="figure">
+<div id="org0a7bc77" class="figure">
 <p><img src="attachments/optimized-ir.png" alt="optimized-ir.png" />
 </p>
 </div>
@@ -1482,7 +1483,8 @@ we need to do this classification fast we will use a look up table to do the cla
 </p>
 
 </aside>
-<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides" style="font-size: 60%;">
 
 
 <colgroup>
@@ -1589,8 +1591,9 @@ we need to do this classification fast we will use a look up table to do the cla
 </ul></li>
 
 </ul>
-<ol class="org-ol">
-<li><a id="7-1-1-1"></a>VPSHUFB: Vector Permute Shuffle Bytes<br />
+</section>
+<section id="slide-7-1-2">
+<h4 id="7-1-2"><span class="section-number-4">7.1.2.</span> VPSHUFB: Vector Permute Shuffle Bytes</h4>
 <aside class="notes">
 <p>
 If you have any experience with hashmaps, they are actually very slow
@@ -1648,8 +1651,9 @@ hashing function is a fake O(1)
 <span style="color: #51afef;">}</span>
 </pre>
 </div>
-</li>
-<li><a id="7-1-1-2"></a>Simple example<br />
+</section>
+<section id="slide-7-1-3">
+<h4 id="7-1-3"><span class="section-number-4">7.1.3.</span> Simple example</h4>
 <table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
 
 
@@ -1700,9 +1704,10 @@ hashing function is a fake O(1)
 </ul></li>
 
 </ul>
-<ol class="org-ol">
-<li><a id="7-1-1-2-1"></a>Simple example<br />
-<pre class="example" id="org2abe329">
+</section>
+<section id="slide-7-1-4">
+<h4 id="7-1-4"><span class="section-number-4">7.1.4.</span> Simple example</h4>
+<pre class="example" id="org5534a31">
 "LF:"
 
 Low nibble table
@@ -1715,8 +1720,9 @@ high nibble table
 08 .. 02 xx xx xx xx xx xx xx xx xx xx xx xx xx
 0100,  0010
 </pre>
-</li>
-<li><a id="7-1-1-2-2"></a>Simple example<br />
+</section>
+<section id="slide-7-1-5">
+<h4 id="7-1-5"><span class="section-number-4">7.1.5.</span> Simple example</h4>
 <table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
 
 
@@ -1766,17 +1772,12 @@ high nibble table
 </tr>
 </tbody>
 </table>
-</li>
-</ol>
-</li>
-</ol>
 </section>
-<section id="slide-7-1-2">
-<h4 id="7-1-2"><span class="section-number-4">7.1.2.</span> Stage 1: Bitmap to Array index</h4>
-<div class="outline-text-4" id="text-7-1-2">
-</div>
-<ol class="org-ol">
-<li><a id="7-1-2-1"></a>input data<br />
+<section id="slide-7-1-6">
+<h4 id="7-1-6"><span class="section-number-4">7.1.6.</span> Stage 1: Bitmap to Array index</h4>
+</section>
+<section id="slide-7-1-7">
+<h4 id="7-1-7"><span class="section-number-4">7.1.7.</span> input data</h4>
 <aside class="notes">
 <p>
 In stage 1, we our functions take in 64 byte * 8 bit blocks
@@ -1803,14 +1804,14 @@ as such we want to extract the bits into a list of indexes instead of working di
 
 </aside>
 
-<blockquote>
-<p>
-{ &ldquo;\\\&rdquo;Nam[{&ldquo;: [ 116,&rdquo;\\\\&ldquo; , 234, &rdquo;true&ldquo;, false ], &rdquo;t&ldquo;:&rdquo;\\\&ldquo;&rdquo; }: input data
-<span class="underline"><span class="underline">1_________1________1____1________1____1___________1_1_1____1</span></span>: Q
+<div class="org-src-container">
+
+<pre class="src src-text">{ "\\\"Nam[{": [ 116,"\\\\" , 234, "true", false ], "t":"\\\"" }: input data
+__1_________1________1____1________1____1___________1_1_1____1__: Q
 1_________11_1_1____1_______1____1_______1_______11____1_______1: S
-<span class="underline">1____________1_1__________1_1____1_______1_____1__1__________1</span>: W
-</p>
-</blockquote>
+_1____________1_1__________1_1____1_______1_____1__1__________1_: W
+</pre>
+</div>
 <ul>
 <li>take Q for example, we want to convert Q&rsquo;s bit mask into a list of indexes
 <ul>
@@ -1819,12 +1820,16 @@ as such we want to extract the bits into a list of indexes instead of working di
 </ul></li>
 
 </ul>
-</li>
-<li><a id="7-1-2-2"></a>extraction<br />
+</section>
+<section id="slide-7-1-8">
+<h4 id="7-1-8"><span class="section-number-4">7.1.8.</span> extraction</h4>
 <ul>
-<li>2 instructions</li>
+<li>2 instructions
+<ul>
 <li>tzcnt count trailing least significant 0 bits</li>
 <li>blsr which delete the last bit.</li>
+
+</ul></li>
 
 </ul>
 <div class="org-src-container">
@@ -1835,8 +1840,9 @@ a = blsr(a)    // 1000000
 idx = tzcnt(a) // 6
 </pre>
 </div>
-</li>
-<li><a id="7-1-2-3"></a>Naive Implementation<br />
+</section>
+<section id="slide-7-1-9">
+<h4 id="7-1-9"><span class="section-number-4">7.1.9.</span> Naive Implementation</h4>
 <aside class="notes">
 <p>
 the compiler will automatically optimize this into the tzcnt and blsr
@@ -1862,11 +1868,12 @@ how do we solve it?
 <span style="color: #51afef;">}</span>
 </pre>
 </div>
-</li>
-<li><a id="7-1-2-4"></a>Minimal branching implementation<br />
+</section>
+<section id="slide-7-1-10">
+<h4 id="7-1-10"><span class="section-number-4">7.1.10.</span> Minimal branching implementation</h4>
 <div class="org-src-container">
 
-<pre class="src src-c++"><span style="color: #ECBE7B;">void</span> <span style="color: #c678dd;">extract_set_bits_optimized</span><span style="color: #51afef;">(</span><span style="color: #ECBE7B;">uint64_t</span> <span style="color: #dcaeea;">bitset</span>, <span style="color: #ECBE7B;">uint32_t</span>* <span style="color: #dcaeea;">output</span><span style="color: #51afef;">)</span> <span style="color: #51afef;">{</span>
+<pre style="font-size: 16px; width: 95%;"><span style="color: #ECBE7B;">void</span> <span style="color: #c678dd;">extract_set_bits_optimized</span><span style="color: #51afef;">(</span><span style="color: #ECBE7B;">uint64_t</span> <span style="color: #dcaeea;">bitset</span>, <span style="color: #ECBE7B;">uint32_t</span>* <span style="color: #dcaeea;">output</span><span style="color: #51afef;">)</span> <span style="color: #51afef;">{</span>
 <span style="color: #3dea43364a63;"> </span>   <span style="color: #5B6268;">// </span><span style="color: #5B6268;">Get total number of set bits</span>
 <span style="color: #3dea43364a63;"> </span>   <span style="color: #ECBE7B;">uint32_t</span> <span style="color: #dcaeea;">count</span> = __builtin_popcountll<span style="color: #c678dd;">(</span>bitset<span style="color: #c678dd;">)</span>;
 <span style="color: #3dea43364a63;"> </span>   <span style="color: #ECBE7B;">uint32_t</span>* <span style="color: #dcaeea;">next_base</span> = output + count;
@@ -1904,8 +1911,6 @@ how do we solve it?
 <span style="color: #51afef;">}</span>
 </pre>
 </div>
-</li>
-</ol>
 </section>
 <section id="slide-7-2">
 <h3 id="7-2"><span class="section-number-3">7.2.</span> Stage 1: 2 Eliminated escaped or quoted substring</h3>
@@ -1916,7 +1921,7 @@ how do we solve it?
 <h4 id="7-2-1"><span class="section-number-4">7.2.1.</span> Get backslash</h4>
 <div class="org-src-container">
 
-<pre class="src src-text">{ "\\\"Nam[{": [ 116,"\\\\" , 234, "true", false ], "t":"\\\"" }: input data
+<pre style="font-size: 16px; width: 120%; margin-left: -10%;">{ "\\\"Nam[{": [ 116,"\\\\" , 234, "true", false ], "t":"\\\"" }: input data
 ___111________________1111_______________________________111____: B = backslash_bits
 ____111_________________1111______________________________111___: bits_shifted_left = backslash_bits &lt;&lt; 1
 
@@ -1931,7 +1936,7 @@ ___1__________________1__________________________________1______: S = starts = b
 <h4 id="7-2-2"><span class="section-number-4">7.2.2.</span> Get odd length sequences starting on an odd offset</h4>
 <div class="org-src-container">
 
-<pre class="src src-text">_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1: O (constant)
+<pre style="font-size: 16px;">_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1: O (constant)
 ___111________________1111_______________________________111____: B = backslash_bits
 ___1__________________1__________________________________1______: S = starts = bits &amp; inverted
 _1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1: O (constant)
@@ -1964,7 +1969,7 @@ its just the reverse of what we done just now
 </p>
 <div class="org-src-container">
 
-<pre class="src src-text">{ "\\\"Nam[{": [ 116,"\\\\" , 234, "true", false ], "t":"\\\"" }: input data
+<pre style="width: 120%; margin-left: -10%;">{ "\\\"Nam[{": [ 116,"\\\\" , 234, "true", false ], "t":"\\\"" }: input data
 1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_: E (constant)
 ___1__________________1__________________________________1______: S = starts = bits &amp; inverted
 ______________________1_________________________________________: ES = S &amp; E
@@ -1986,7 +1991,7 @@ ________________________________________________________________: OD1 = ECE &amp
 <h4 id="7-2-4"><span class="section-number-4">7.2.4.</span> Get sequences with odd offset</h4>
 <div class="org-src-container">
 
-<pre class="src src-text">// merge results, yielding ends of all odd-length sequence of backslashes
+<pre style="width: 110%; margin-left: -5%;">// merge results, yielding ends of all odd-length sequence of backslashes
 ________________________________________________________________: OD1 = ECE &amp; ~E
 ______1_____________________________________________________1___: OD2 = OCO &amp; E
 
@@ -2015,11 +2020,9 @@ __1111111111_________11111_________11111____________11__11111___: CLMUL(Q,~0)
 <div class="org-src-container">
 
 <pre class="src src-c++"><span style="color: #ECBE7B;">uint64_t</span> <span style="color: #c678dd;">xorShiftOperations</span><span style="color: #51afef;">(</span><span style="color: #ECBE7B;">uint64_t</span> <span style="color: #dcaeea;">num</span>, <span style="color: #ECBE7B;">bool</span> <span style="color: #dcaeea;">rightShift</span>, <span style="color: #ECBE7B;">bool</span> <span style="color: #dcaeea;">tutorial</span> = <span style="color: #a9a1e1;">false</span><span style="color: #51afef;">)</span> <span style="color: #51afef;">{</span>
-<span style="color: #3dea43364a63;"> </span>   <span style="color: #5B6268;">// </span><span style="color: #5B6268;">Array of shift amounts</span>
-<span style="color: #3dea43364a63;"> </span>   <span style="color: #ECBE7B;">int</span> <span style="color: #dcaeea;">shifts</span><span style="color: #c678dd;">[]</span> = <span style="color: #c678dd;">{</span><span style="color: #da8548; font-weight: bold;">1</span>, <span style="color: #da8548; font-weight: bold;">2</span>, <span style="color: #da8548; font-weight: bold;">4</span>, <span style="color: #da8548; font-weight: bold;">8</span>, <span style="color: #da8548; font-weight: bold;">16</span>, <span style="color: #da8548; font-weight: bold;">32</span><span style="color: #c678dd;">}</span>;
 <span style="color: #3dea43364a63;"> </span>   <span style="color: #ECBE7B;">uint64_t</span> <span style="color: #dcaeea;">result</span> = num;
-<span style="color: #3dea43364a63;"> </span>   <span style="color: #51afef;">for</span> <span style="color: #c678dd;">(</span><span style="color: #ECBE7B;">int</span> <span style="color: #dcaeea;">shift</span> : shifts<span style="color: #c678dd;">)</span> <span style="color: #c678dd;">{</span>
-<span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span>   result ^= <span style="color: #98be65;">(</span>result &lt;&lt; shift<span style="color: #98be65;">)</span>;
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #51afef;">for</span> <span style="color: #c678dd;">(</span><span style="color: #ECBE7B;">int</span> <span style="color: #dcaeea;">i</span> = <span style="color: #da8548; font-weight: bold;">1</span>; i &lt;= <span style="color: #da8548; font-weight: bold;">64</span>; i++<span style="color: #c678dd;">)</span> <span style="color: #c678dd;">{</span>
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span>   result ^= <span style="color: #98be65;">(</span>num &lt;&lt; i<span style="color: #98be65;">)</span>;
 <span style="color: #3dea43364a63;"> </span>   <span style="color: #c678dd;">}</span>
 <span style="color: #3dea43364a63;"> </span>   <span style="color: #5B6268;">// </span><span style="color: #5B6268;">0000000000000000000010000000000000000000000000000000000000000000</span>
 <span style="color: #3dea43364a63;"> </span>   <span style="color: #5B6268;">// </span><span style="color: #5B6268;">after apply</span>
@@ -2048,7 +2051,6 @@ __1111111111_________11111_________11111____________11__11111___: CLMUL(Q,~0)
 // 0001111111111111111111111111111111111111111111111111111111111111
 // result
 // 0001111111111111111100000000000000000000000000000000000000000000
-
 </pre>
 </div>
 </section>
@@ -2076,24 +2078,35 @@ After left shift by 32:
 </section>
 <section id="slide-7-2-9">
 <h4 id="7-2-9"><span class="section-number-4">7.2.9.</span> Sweeping implemented by CLMUL, pclmulqdq</h4>
+<aside class="notes">
+<p>
+Why CLMUL is equivalent to the operation above?
+XOR is actually the (a + b) % 2
+XOR is addition without the carrying bit
+then we multiply because shifting left or right is a multiply
+</p>
+
+</aside>
 <ul>
 <li>Carry Less Multiply</li>
-<li>CLMUL(4, 20)</li>
-<li>4 * 20</li>
+<li>CLMUL(4, 15)</li>
+<li>4 * 15</li>
 
 </ul>
 <div class="org-src-container">
 
 <pre class="src src-text">        4
-X      20
+X      15
 ----------
         4
-X (16 + 4)
+X(8+4+2+1)
 ----------
+        4
+        8
        16
-+      64
++      32
 ----------
-       80
+       60
 ----------
 </pre>
 </div>
@@ -2101,19 +2114,21 @@ X (16 + 4)
 <section id="slide-7-2-10">
 <h4 id="7-2-10"><span class="section-number-4">7.2.10.</span> Sweeping implemented by CLMUL, pclmulqdq</h4>
 <ul>
-<li>CLMUL(4, 20)</li>
+<li>CLMUL(4, 15)</li>
 <li>XOR ~= ADD</li>
 
 </ul>
 <div class="org-src-container">
 
-<pre class="src src-text">        00100  (4)
-   X    10100  (20)
+<pre class="src src-text">         0100  (4)
+   X     1111  (15)
 -------------
-      00100__  (X4  means 4 &lt;&lt; 2)
-XOR 00100____  (X16 means 4 &lt;&lt; 4)
+        00100  (X1 means 4 &lt;&lt; 0)
+XOR    00100_  (X2 means 4 &lt;&lt; 1)
+XOR   00100__  (X4 means 4 &lt;&lt; 2)
+XOR  00100___  (X8 means 4 &lt;&lt; 3)
 -------------
-    00101      (all XORed together)
+       111100  (all XORed together)
 -------------
 </pre>
 </div>
@@ -2126,12 +2141,11 @@ XOR 00100____  (X16 means 4 &lt;&lt; 4)
 </ul>
 <div class="org-src-container">
 
-<pre class="src src-c++"><span style="color: #ECBE7B;">int</span> <span style="color: #dcaeea;">shifts</span><span style="color: #51afef;">[]</span> = <span style="color: #51afef;">{</span><span style="color: #da8548; font-weight: bold;">1</span>, <span style="color: #da8548; font-weight: bold;">2</span>, <span style="color: #da8548; font-weight: bold;">4</span>, <span style="color: #da8548; font-weight: bold;">8</span>, <span style="color: #da8548; font-weight: bold;">16</span>, <span style="color: #da8548; font-weight: bold;">32</span><span style="color: #51afef;">}</span>;
-<span style="color: #ECBE7B;">uint64_t</span> <span style="color: #dcaeea;">result</span> = num;
-<span style="color: #51afef;">for</span> <span style="color: #51afef;">(</span><span style="color: #ECBE7B;">int</span> <span style="color: #dcaeea;">shift</span> : shifts<span style="color: #51afef;">)</span> <span style="color: #51afef;">{</span>
-<span style="color: #3dea43364a63;"> </span>   result ^= <span style="color: #c678dd;">(</span>result &lt;&lt; shift<span style="color: #c678dd;">)</span>;
+<pre class="src src-c++"><span style="color: #ECBE7B;">uint64_t</span> <span style="color: #dcaeea;">result</span> = num;
+<span style="color: #51afef;">for</span> <span style="color: #51afef;">(</span><span style="color: #ECBE7B;">int</span> <span style="color: #dcaeea;">i</span> = <span style="color: #da8548; font-weight: bold;">1</span>; i &lt;= <span style="color: #da8548; font-weight: bold;">64</span>; i++<span style="color: #51afef;">)</span> <span style="color: #51afef;">{</span>
+<span style="color: #3dea43364a63;"> </span>   result ^= <span style="color: #c678dd;">(</span>num &lt;&lt; i<span style="color: #c678dd;">)</span>;
 <span style="color: #51afef;">}</span>
-<span style="color: #5B6268;">// </span><span style="color: #5B6268;">01010101 01010101 01010101 01010101</span>
+<span style="color: #5B6268;">// </span><span style="color: #5B6268;">11111111 11111111 11111111 11111111</span>
 
 <span style="color: #5B6268;">//            </span><span style="color: #5B6268;">input</span>
 <span style="color: #5B6268;">// </span><span style="color: #5B6268;">XOR (input &lt;&lt;  1)</span>
@@ -2199,8 +2213,9 @@ Four bytes:
 First byte starts with 11110
 </pre>
 </div>
-<ol class="org-ol">
-<li><a id="7-3-2-1"></a>map to values<br />
+</section>
+<section id="slide-7-3-3">
+<h4 id="7-3-3"><span class="section-number-4">7.3.3.</span> map to values</h4>
 <table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
 
 
@@ -2300,8 +2315,9 @@ First byte starts with 11110
 3 0 0
 </pre>
 </div>
-</li>
-<li><a id="7-3-2-2"></a>SIMD validation algorithm<br />
+</section>
+<section id="slide-7-3-4">
+<h4 id="7-3-4"><span class="section-number-4">7.3.4.</span> SIMD validation algorithm</h4>
 <div class="org-src-container">
 
 <pre class="src src-text">4 0 0 0 3 0 0 2 0 1 1 1
@@ -2320,8 +2336,9 @@ First byte starts with 11110
 // none of the numbers are bigger than the original
 </pre>
 </div>
-</li>
-<li><a id="7-3-2-3"></a>SIMD validation algorithm: Invalid example<br />
+</section>
+<section id="slide-7-3-5">
+<h4 id="7-3-5"><span class="section-number-4">7.3.5.</span> SIMD validation algorithm: Invalid example</h4>
 <div class="org-src-container">
 
 <pre class="src src-text">2 0 0 0 4 3 0 0
@@ -2340,8 +2357,6 @@ First byte starts with 11110
           - 6 &gt; 3
 </pre>
 </div>
-</li>
-</ol>
 </section>
 </section>
 <section>
@@ -2357,10 +2372,6 @@ First byte starts with 11110
 </section>
 <section id="slide-8-1-1">
 <h4 id="8-1-1"><span class="section-number-4">8.1.1.</span> Understanding the is_all_digits</h4>
-<div class="outline-text-4" id="text-8-1-1">
-</div>
-<ol class="org-ol">
-<li><a id="8-1-1-1"></a>Overview<br />
 <p>
 Fast 8 digit check
 </p>
@@ -2372,8 +2383,9 @@ Fast 8 digit check
 <span style="color: #ECBE7B;">bool</span> <span style="color: #dcaeea;">is_all_digits</span> = combined == <span style="color: #51afef;">0x</span><span style="color: #a9a1e1;">3333333333333333</span>;
 </pre>
 </div>
-</li>
-<li><a id="8-1-1-2"></a>Key Insight: ASCII Characters from 0x29 to 0x3A<br />
+</section>
+<section id="slide-8-1-2">
+<h4 id="8-1-2"><span class="section-number-4">8.1.2.</span> Key Insight: ASCII Characters from 0x29 to 0x3A</h4>
 <aside class="notes">
 <p>
 So there are 2 things to check, less than 0x30 which is 0x2F up here
@@ -2385,7 +2397,7 @@ So there are 2 things to check, less than 0x30 which is 0x2F up here
 <li>notice all high nibble of valid digits are 3</li>
 
 </ul>
-<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides" style="font-size: 80%;">
 
 
 <colgroup>
@@ -2508,10 +2520,9 @@ So there are 2 things to check, less than 0x30 which is 0x2F up here
 </tr>
 </tbody>
 </table>
-<ol class="org-ol">
-<li><a id="8-1-1-2-1"></a>Step-by-Step Visual Explanation<br />
-<ol class="org-ol">
-<li><a id="8-1-1-2-1-1"></a>Step 1: Initial masking of high nibbles<br />
+</section>
+<section id="slide-8-1-3">
+<h4 id="8-1-3"><span class="section-number-4">8.1.3.</span> Step 1: Initial masking of high nibbles</h4>
 <div class="org-src-container">
 
 <pre class="src src-c++"><span style="color: #ECBE7B;">uint64</span> <span style="color: #dcaeea;">high_nibble</span> = val &amp; <span style="color: #51afef;">0x</span><span style="color: #a9a1e1;">F0F0F0F0F0F0F0F0</span>;
@@ -2522,7 +2533,7 @@ So there are 2 things to check, less than 0x30 which is 0x2F up here
 <li>Let&rsquo;s take valid input &ldquo;12345678&rdquo;:</li>
 
 </ul>
-<pre class="example" id="org1c35fa4">
+<pre class="example" id="org5b375a2">
 Input bytes:    31 32 33 34 35 36 37 38
                 || || || || || || || ||
                 v| v| v| v| v| v| v| v|
@@ -2532,8 +2543,9 @@ Mask:           F0 F0 F0 F0 F0 F0 F0 F0
                 =  =  =  =  =  =  =  =
 Result1:        30 30 30 30 30 30 30 30
 </pre>
-</li>
-<li><a id="8-1-1-2-1-2"></a>How the low nibble check works<br />
+</section>
+<section id="slide-8-1-4">
+<h4 id="8-1-4"><span class="section-number-4">8.1.4.</span> How the low nibble check works</h4>
 <ul>
 <li>we want to ensure that low nibble is within 0xX0 - 0xX9
 <ul>
@@ -2546,9 +2558,10 @@ Result1:        30 30 30 30 30 30 30 30
 </ul></li>
 
 </ul>
-</li>
-<li><a id="8-1-1-2-1-3"></a>Case 1: Valid Digit (0x39 = &rsquo;9&rsquo;)<br />
-<pre class="example" id="org2284b98">
+</section>
+<section id="slide-8-1-5">
+<h4 id="8-1-5"><span class="section-number-4">8.1.5.</span> Case 1: Valid Digit (0x39 = &rsquo;9&rsquo;)</h4>
+<pre class="example" id="org2a157a9">
 0x39 = 0011 1001  (Original value '9')
 0x06 = 0000 0110  (Value we add)
       -----------
@@ -2564,9 +2577,10 @@ After masking high nibble (&amp; 0xF0):
 After right shift by 4:
 0x30 &gt;&gt; 4 = 0000 0011  (= 0x03) ✓ Valid!
 </pre>
-</li>
-<li><a id="8-1-1-2-1-4"></a>Case 2: Invalid Character (0x3A = &rsquo;:&rsquo;)<br />
-<pre class="example" id="orgd781e4c">
+</section>
+<section id="slide-8-1-6">
+<h4 id="8-1-6"><span class="section-number-4">8.1.6.</span> Case 2: Invalid Character (0x3A = &rsquo;:&rsquo;)</h4>
+<pre class="example" id="org4c09d74">
 0x3A = 0011 1010  (Original value ':')
 0x06 = 0000 0110  (Value we add)
       -----------
@@ -2591,9 +2605,10 @@ After right shift by 4:
  0x34 &lt;- INVALID
 -----
 </pre>
-</li>
-<li><a id="8-1-1-2-1-5"></a>Step 2: Add 0x06 to detect non-digits<br />
-<pre class="example" id="org7103900">
+</section>
+<section id="slide-8-1-7">
+<h4 id="8-1-7"><span class="section-number-4">8.1.7.</span> Step 2: Add 0x06 to detect non-digits</h4>
+<pre class="example" id="orgc935978">
 Low nibbles:    1  2  3  4  5  6  7  8
 Add 0x06:       7  8  9  A  B  C  D  E
                 ^  ^  ^  ^  ^  ^  ^  ^
@@ -2601,12 +2616,13 @@ Add 0x06:       7  8  9  A  B  C  D  E
 If original &lt;= 9: No carry to high nibble
 If original &gt; 9: Carry affects high nibble
 </pre>
-</li>
-<li><a id="8-1-1-2-1-6"></a>Step 3: Example with valid digits (0-9)<br />
+</section>
+<section id="slide-8-1-8">
+<h4 id="8-1-8"><span class="section-number-4">8.1.8.</span> Step 3: Example with valid digits (0-9)</h4>
 <p>
 Take &ldquo;12345678&rdquo;:
 </p>
-<pre class="example" id="org1a46923">
+<pre class="example" id="org6393791">
 
 Original:       31 32 33 34 35 36 37 38
                 v  v  v  v  v  v  v  v
@@ -2621,12 +2637,13 @@ high nibble:    30 30 30 30 30 30 30 30
 low nibble:     03 03 03 03 03 03 03 03
 OR together:    33 33 33 33 33 33 33 33
 </pre>
-</li>
-<li><a id="8-1-1-2-1-7"></a>Step 4: Example with invalid character (&rsquo;;&rsquo; = 0x3B)<br />
+</section>
+<section id="slide-8-1-9">
+<h4 id="8-1-9"><span class="section-number-4">8.1.9.</span> Step 4: Example with invalid character (&rsquo;;&rsquo; = 0x3B)</h4>
 <p>
 Take &ldquo;1234;678&rdquo;:
 </p>
-<pre class="example" id="orga9747e4">
+<pre class="example" id="org626c80b">
 Original:       31 32 33 34 3B 36 37 38
 After +0x06:    37 38 39 3A 41 3C 3D 3E
                                ^
@@ -2638,10 +2655,9 @@ high nibble:    30 30 30 30 30 30 30 30
 OR together:    33 33 33 33 34 33 33 33 ≠ 0x3333...
                                ^ Caught!
 </pre>
-</li>
-</ol>
-</li>
-<li><a id="8-1-1-2-2"></a>Why It Works<br />
+</section>
+<section id="slide-8-1-10">
+<h4 id="8-1-10"><span class="section-number-4">8.1.10.</span> Why It Works</h4>
 <ol>
 <li>First part (val &amp; 0xF0F0&#x2026;):
 <ul>
@@ -2675,18 +2691,18 @@ OR together:    33 33 33 33 34 33 33 33 ≠ 0x3333...
 </ul></li>
 
 </ol>
-</li>
-<li><a id="8-1-1-2-3"></a>Examples with Different Cases<br />
-<ol class="org-ol">
-<li><a id="8-1-1-2-3-1"></a>Valid Cases<br />
-<pre class="example" id="orgfe9d236">
+</section>
+<section id="slide-8-1-11">
+<h4 id="8-1-11"><span class="section-number-4">8.1.11.</span> Valid Cases</h4>
+<pre class="example" id="orgcc31b8f">
 "00000000" -&gt; 0x3333333333333333 ✓
 "99999999" -&gt; 0x3333333333333333 ✓
 "12345678" -&gt; 0x3333333333333333 ✓
 </pre>
-</li>
-<li><a id="8-1-1-2-3-2"></a>Invalid Cases<br />
-<pre class="example" id="org5d3b262">
+</section>
+<section id="slide-8-1-12">
+<h4 id="8-1-12"><span class="section-number-4">8.1.12.</span> Invalid Cases</h4>
+<pre class="example" id="orgc77c145">
 "A" (0x41):
 Original:  41
 +0x06:     47
@@ -2702,10 +2718,9 @@ Original:  3A
 +0x06:     40
 High:      40 ≠ 30 -&gt; Fails
 </pre>
-</li>
-</ol>
-</li>
-<li><a id="8-1-1-2-4"></a>Performance Benefits<br />
+</section>
+<section id="slide-8-1-13">
+<h4 id="8-1-13"><span class="section-number-4">8.1.13.</span> Performance Benefits</h4>
 <ul>
 <li>Single comparison instead of 8 individual checks</li>
 <li>No branches (important for modern CPUs)</li>
@@ -2717,17 +2732,9 @@ High:      40 ≠ 30 -&gt; Fails
 <p>
 This algorithm is a beautiful example of bit manipulation that turns what would normally be 8 comparisons into a single mathematical test.
 </p>
-</li>
-</ol>
-</li>
-</ol>
 </section>
-<section id="slide-8-1-2">
-<h4 id="8-1-2"><span class="section-number-4">8.1.2.</span> Understanding SIMD-Based Fast Eight-Digit Number Parsing</h4>
-<div class="outline-text-4" id="text-8-1-2">
-</div>
-<ol class="org-ol">
-<li><a id="8-1-2-1"></a>Overview<br />
+<section id="slide-8-1-14">
+<h4 id="8-1-14"><span class="section-number-4">8.1.14.</span> Understanding SIMD-Based Fast Eight-Digit Number Parsing</h4>
 <p>
 Convert ASCII string of 8 digits to integer using SIMD instructions.
 Example: &ldquo;12345678&rdquo; -&gt; 12345678
@@ -2749,10 +2756,9 @@ Example: &ldquo;12345678&rdquo; -&gt; 12345678
 <span style="color: #51afef;">}</span>
 </pre>
 </div>
-</li>
-<li><a id="8-1-2-2"></a>Step-by-Step Process<br />
-<ol class="org-ol">
-<li><a id="8-1-2-2-1"></a>Step 1: Convert ASCII to Numeric Values<br />
+</section>
+<section id="slide-8-1-15">
+<h4 id="8-1-15"><span class="section-number-4">8.1.15.</span> Step 1: Convert ASCII to Numeric Values</h4>
 <div class="org-src-container">
 
 <pre class="src src-c++"><span style="color: #3dea43364a63;"> </span> <span style="color: #ECBE7B;">__m128i</span> <span style="color: #dcaeea;">ascii0</span> = _mm_set1_epi8<span style="color: #51afef;">(</span>&#8217;<span style="color: #da8548; font-weight: bold;">0</span>&#8217;<span style="color: #51afef;">)</span>;
@@ -2761,7 +2767,7 @@ Example: &ldquo;12345678&rdquo; -&gt; 12345678
 </pre>
 </div>
 
-<pre class="example" id="orge431b09">
+<pre class="example" id="orgdb769e7">
 Input:          "12345678"
 ASCII values:   31 32 33 34 35 36 37 38
 Subtract:       30 30 30 30 30 30 30 30
@@ -2769,15 +2775,16 @@ Subtract '0':   01 02 03 04 05 06 07 08  (numeric values)
                 |  |  |  |  |  |  |  |
 Instruction:    _mm_sub_epi8 (PSUBB - packed subtract bytes)
 </pre>
-</li>
-<li><a id="8-1-2-2-2"></a>Step 2: Multiply Alternate Digits by 10 and Add<br />
+</section>
+<section id="slide-8-1-16">
+<h4 id="8-1-16"><span class="section-number-4">8.1.16.</span> Step 2: Multiply Alternate Digits by 10 and Add</h4>
 <div class="org-src-container">
 
 <pre class="src src-c++"><span style="color: #3dea43364a63;"> </span> <span style="color: #ECBE7B;">__m128i</span> <span style="color: #dcaeea;">mul_1_10</span> = _mm_setr_epi8<span style="color: #51afef;">(</span><span style="color: #da8548; font-weight: bold;">10</span>, <span style="color: #da8548; font-weight: bold;">1</span>, <span style="color: #da8548; font-weight: bold;">10</span>, <span style="color: #da8548; font-weight: bold;">1</span>, <span style="color: #da8548; font-weight: bold;">10</span>, <span style="color: #da8548; font-weight: bold;">1</span>, <span style="color: #da8548; font-weight: bold;">10</span>, <span style="color: #da8548; font-weight: bold;">1</span>, <span style="color: #da8548; font-weight: bold;">10</span>, <span style="color: #da8548; font-weight: bold;">1</span>, <span style="color: #da8548; font-weight: bold;">10</span>, <span style="color: #da8548; font-weight: bold;">1</span>, <span style="color: #da8548; font-weight: bold;">10</span>, <span style="color: #da8548; font-weight: bold;">1</span>, <span style="color: #da8548; font-weight: bold;">10</span>, <span style="color: #da8548; font-weight: bold;">1</span><span style="color: #51afef;">)</span>;
 <span style="color: #3dea43364a63;"> </span> <span style="color: #ECBE7B;">__m128i</span> <span style="color: #dcaeea;">t1</span> = _mm_maddubs_epi16<span style="color: #51afef;">(</span>in, mul_1_10<span style="color: #51afef;">)</span>;
 </pre>
 </div>
-<pre class="example" id="orgd3228b2">
+<pre class="example" id="org597f45d">
 Values:         1  2  3  4  5  6  7  8
 Multipliers:   10  1 10  1 10  1 10  1
                 |  |  |  |  |  |  |  |
@@ -2787,8 +2794,9 @@ Sums:           12    34    56    78     (as 16-bit values)
 
 Instruction: _mm_maddubs_epi16 (PMADDUBSW - multiply and add unsigned bytes to signed words)
 </pre>
-</li>
-<li><a id="8-1-2-2-3"></a>Step 3: Multiply Alternate 16-bit Values by 100<br />
+</section>
+<section id="slide-8-1-17">
+<h4 id="8-1-17"><span class="section-number-4">8.1.17.</span> Step 3: Multiply Alternate 16-bit Values by 100</h4>
 <aside class="notes">
 <p>
 what is the next step ?
@@ -2801,7 +2809,7 @@ what is the next step ?
 <span style="color: #3dea43364a63;"> </span> <span style="color: #ECBE7B;">__m128i</span> <span style="color: #dcaeea;">t2</span> = _mm_madd_epi16<span style="color: #51afef;">(</span>t1, mul_1_100<span style="color: #51afef;">)</span>;
 </pre>
 </div>
-<pre class="example" id="org0380c6c">
+<pre class="example" id="org63bf077">
 Values:        12   34   56   78
 Multipliers:  100    1  100    1
                 |    |    |    |
@@ -2820,8 +2828,9 @@ Instruction: _mm_madd_epi16 (PMADDWD - multiply and add packed words)
 <pre class="src src-c++"><span style="color: #3dea43364a63;"> </span> <span style="color: #ECBE7B;">__m128i</span> <span style="color: #dcaeea;">mul_1_10000</span> = _mm_setr_epi16<span style="color: #51afef;">(</span><span style="color: #da8548; font-weight: bold;">10000</span>, <span style="color: #da8548; font-weight: bold;">1</span>, <span style="color: #da8548; font-weight: bold;">10000</span>, <span style="color: #da8548; font-weight: bold;">1</span>, <span style="color: #da8548; font-weight: bold;">10000</span>, <span style="color: #da8548; font-weight: bold;">1</span>, <span style="color: #da8548; font-weight: bold;">10000</span>, <span style="color: #da8548; font-weight: bold;">1</span><span style="color: #51afef;">)</span>;
 </pre>
 </div>
-</li>
-<li><a id="8-1-2-2-4"></a>Step 4: Pack 32-bit Values to 16-bit<br />
+</section>
+<section id="slide-8-1-18">
+<h4 id="8-1-18"><span class="section-number-4">8.1.18.</span> Step 4: Pack 32-bit Values to 16-bit</h4>
 <ul>
 <li>reinterpret value as 32 bit instead of 16 bits!? why?</li>
 <li>so we can use <code>_mm_setr_epi16</code> instead of <code>_mm_setr_epi32</code>
@@ -2837,21 +2846,22 @@ Instruction: _mm_madd_epi16 (PMADDWD - multiply and add packed words)
 <span style="color: #3dea43364a63;"> </span> <span style="color: #ECBE7B;">__m128i</span> <span style="color: #dcaeea;">t3</span> = _mm_packus_epi32<span style="color: #51afef;">(</span>t2, t2<span style="color: #51afef;">)</span>;
 </pre>
 </div>
-<pre class="example" id="orgcb887f8">
+<pre class="example" id="org4963d6d">
 Before:   1234(32-bit)  5678(32-bit)
 After:    1234(16-bit)  5678(16-bit)
 
 Instruction: _mm_packus_epi32 (PACKUSDW - pack with unsigned saturation)
 </pre>
-</li>
-<li><a id="8-1-2-2-5"></a>Step 5: Final Combine with Multiply by 10000<br />
+</section>
+<section id="slide-8-1-19">
+<h4 id="8-1-19"><span class="section-number-4">8.1.19.</span> Step 5: Final Combine with Multiply by 10000</h4>
 <div class="org-src-container">
 
 <pre class="src src-c++"><span style="color: #3dea43364a63;"> </span> <span style="color: #ECBE7B;">__m128i</span> <span style="color: #dcaeea;">mul_1_10000</span> = _mm_setr_epi16<span style="color: #51afef;">(</span><span style="color: #da8548; font-weight: bold;">10000</span>, <span style="color: #da8548; font-weight: bold;">1</span>, <span style="color: #da8548; font-weight: bold;">10000</span>, <span style="color: #da8548; font-weight: bold;">1</span>, <span style="color: #da8548; font-weight: bold;">10000</span>, <span style="color: #da8548; font-weight: bold;">1</span>, <span style="color: #da8548; font-weight: bold;">10000</span>, <span style="color: #da8548; font-weight: bold;">1</span><span style="color: #51afef;">)</span>;
 <span style="color: #3dea43364a63;"> </span> <span style="color: #ECBE7B;">__m128i</span> <span style="color: #dcaeea;">t4</span> = _mm_madd_epi16<span style="color: #51afef;">(</span>t3, mul_1_10000<span style="color: #51afef;">)</span>;
 </pre>
 </div>
-<pre class="example" id="orgeb8461c">
+<pre class="example" id="orged3ad1a">
 Values:        1234     5678
 Multipliers:  10000        1
                   |        |
@@ -2861,8 +2871,9 @@ Sum:           12345678    (final 32-bit result)
 
 Instruction: _mm_madd_epi16 (PMADDWD again)
 </pre>
-</li>
-<li><a id="8-1-2-2-6"></a>Summary: Why This is Fast<br />
+</section>
+<section id="slide-8-1-20">
+<h4 id="8-1-20"><span class="section-number-4">8.1.20.</span> Summary: Why This is Fast</h4>
 <ol>
 <li>Parallel Processing:
 <ul>
@@ -2889,10 +2900,6 @@ Instruction: _mm_madd_epi16 (PMADDWD again)
 </ul></li>
 
 </ol>
-</li>
-</ol>
-</li>
-</ol>
 </section>
 </section>
 <section>
@@ -2905,7 +2912,7 @@ Instruction: _mm_madd_epi16 (PMADDWD again)
 <h3 id="9-1"><span class="section-number-3">9.1.</span> SIMD8 zero cost &ldquo;abstraction&rdquo;</h3>
 <div class="org-src-container">
 
-<pre class="src src-text">                          +---------------------+
+<pre style="font-size: 40%; width: 50%">                          +---------------------+
                           |    base&lt;Child&gt;      |
                           +---------------------+
                                     &#9474;
@@ -3315,7 +3322,7 @@ simdjson_inline <span style="color: #ECBE7B;">Child</span> <span style="color: #
 <div class="org-src-container">
 
 <pre class="src src-cpp"><span style="color: #a9a1e1;">simdjson</span>::<span style="color: #ECBE7B;">padded_string_view</span> <span style="color: #c678dd;">get_padded_string_view</span><span style="color: #51afef;">(</span><span style="color: #51afef;">const</span> <span style="color: #ECBE7B;">char</span> *<span style="color: #dcaeea;">buf</span>, <span style="color: #ECBE7B;">size_t</span> <span style="color: #dcaeea;">len</span>,
-<span style="color: #3dea43364a63;"> </span>                                                  <span style="color: #a9a1e1;">simdjson</span>::<span style="color: #ECBE7B;">padded_string</span> &amp;<span style="color: #dcaeea;">jsonbuffer</span><span style="color: #51afef;">)</span> <span style="color: #51afef;">{</span>
+<span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span>   <span style="color: #3dea43364a63;"> </span>  <span style="color: #a9a1e1;">simdjson</span>::<span style="color: #ECBE7B;">padded_string</span> &amp;<span style="color: #dcaeea;">jsonbuffer</span><span style="color: #51afef;">)</span> <span style="color: #51afef;">{</span>
 <span style="color: #3dea43364a63;"> </span> <span style="color: #51afef;">if</span> <span style="color: #c678dd;">(</span>need_allocation<span style="color: #98be65;">(</span>buf, len<span style="color: #98be65;">)</span><span style="color: #c678dd;">)</span> <span style="color: #c678dd;">{</span> <span style="color: #5B6268;">// </span><span style="color: #5B6268;">unlikely case</span>
 <span style="color: #3dea43364a63;"> </span>   jsonbuffer = <span style="color: #a9a1e1;">simdjson</span>::padded_string<span style="color: #98be65;">(</span>buf, len<span style="color: #98be65;">)</span>;
 <span style="color: #3dea43364a63;"> </span>   <span style="color: #51afef;">return</span> jsonbuffer;
