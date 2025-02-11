@@ -10,37 +10,56 @@
 Too many things to talk about
 pick and choose some
 #+end_notes
-- Describe the real problem with JSON
-  - Techniques and strategies to make it fast
+- why is JSON slow?
 - Simple primer on bitwise operations and simd
 - simdjson architecture
-- How this is used to make simdjson
+- C++ techniques used
 * Problem
-** How fast is your hardware
+** SBE vs JSON
 #+begin_notes
-One core on your computer can actually read and write around 3GB of data per second
+the reason why sbe is because we have the schema
+- we know how far to jump in the array to get data
+- there is no key to read and guess
+- sometimes we have the offset to jump forward
+
+while for json we need to guess what the data means
+there is also validation
 #+end_notes
-
-CPU: AMD Eng Sample: 100-000000534-40_Y: 4.6 GHz
-Network: 1Gb~100MB/s, 10Gb~1000MB/s
-
-One core can read direct text at this speed:
 #+begin_src text
-Testing dd read:
-1280+0 records in
-1280+0 records out
-10737418240 bytes (11 GB, 10 GiB) copied, 3.88076 s, 2.8 GB/s
+Binary Format (Schema: string[10], uint8)
+┌─────────────────┬───────┐
+│ "John Doe"      │ 42    │
+└─────────────────┴───────┘
+  |               └─ Age: Fixed 1 byte, parser knows to read exactly 1 byte
+  └─ Name: Fixed 10 bytes, parser knows to read exactly 10 bytes
+                     (padded with spaces)
+
+JSON Format
+┌──────────────────────────────────┐
+│ {"name":"John Doe","age":42}     │
+└──────────────────────────────────┘
+  |     |           |     └─ Parser must scan until it finds closing brace
+  |     |           └─ Parser must scan for quotes and ":"
+  |     └─ Parser must scan for quotes and ":"
+  └─ Parser must scan character by character, looking for valid JSON tokens
 #+end_src
 ** Why is json interesting?
-- most data is in json
+#+begin_notes
 - basically double the speed means you can parse 2x as much data
-  - duplicating hardware for free
+- duplicating hardware for free
+#+end_notes
+- most data is in json
 | parser    | Skylake | Cannon Lake | speed  |
 |-----------+---------+-------------+--------|
 | simdjson  |     1.4 |         1.3 | fast   |
 | RapidJSON |    0.56 |        0.44 | slow   |
 | sajson    |    0.93 |        0.84 | normal |
 ** Why you should be interested
+#+begin_notes
+this is the breakdown
+can configure, if you remove utf-8 check
+its even faster
+#+end_notes
 - configurable, increase speed
 #+ATTR_HTML: :style background-color: white;
 [[https://arxiv.org/html/1902.08318v7/x1.png]]
@@ -50,11 +69,21 @@ Testing dd read:
 ** On demand json
 #+ATTR_HTML: :style background-color: white;
 [[https://arxiv.org/html/2312.17149v3/x1.png]]
+** Usage
+- read
+  - simdjson
+  - simdjson: On Demand (stream)
+  - fastjson2
+- write
+  - rapidjson
+  - fastjson2
 * Ideas on how to do it fast?
 #+begin_notes
-Suppose we think we have already written the fastest possible cpu parser in the world, what other ways can we speed it up?
+Look at how other people tried to speed it up
+so what other ways can we speed it up?
+json
 #+end_notes
-** strategies
+** Strategies
 - depends on the usage pattern
 *** Query intensive
 - Create a database (ElasticSearch, MongoDB, PostgresSQL)
@@ -85,7 +114,7 @@ Most faster json parser implementations play cheat by just assuming the input is
 
 assuming strings are only ascii when json RFC said UTF-8, dont validate numbers, selectively parsing.
 
-simdjson is a complete parser following Json RFC standards, fully validating the input yet being faster than all of them. assuming input is correct is dangerous because it just is wrong input and wrong output
+simdjson is a complete parser following JSON RFC standards, fully validating the input yet being faster than all of them. assuming input is correct is dangerous because it just is wrong input and wrong output
 #+end_notes
 - Types of json parsing
   - Non-validating json parser
@@ -143,51 +172,6 @@ whitespace = " " | "\t" | "\n" | "\r" ;
 
 /* Comments and Explanation */
 #+end_src
-
-** My reduced definition of JSON
-#+begin_notes
-A json value is just made up of 2 value types
-primitive value and container value
-
-primitive is just like all the java primitives that we know of, boolean string number null
-
-container types only has 2 types array and objects
-
-arrays can contain any json value
-objects contain {string: json_value}
-#+end_notes
-
-#+begin_src ebnf
-json_value ::= primitive_value | container_value
-
-primitive_value ::= boolean | string | number | null
-
-boolean ::= "true" | "false"
-
-string ::= " utf8_char* "
-utf8_char ::= ascii_char | unicode_char
-
-number ::= integer | decimal | scientific
-integer ::= ["+" | "-"] digit+
-decimal ::= integer "." digit+
-scientific ::= decimal "e" ["+"|"-"] digit+
-digit ::= 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
-
-null ::= "null"
-
-container_value ::= object | array
-
-object ::= "{" string:json_value, string:json_value "}"
-
-array ::= "[" json_value, json_value "]"
-
-(* Notes:
-   - Integer limits: [-2^53+1 to 2^53-1] for safe integers
-   - Scientific notation limit: approximately ±2^1024
-   - NaN and Infinity are not valid JSON numbers
-   - Strings must be UTF-8 encoded
-,*)
-#+end_src
 ** Strongly define: bool, string, number, null, object and array
 #+begin_notes
 very simple, we just need to strongly define these 6 basic types
@@ -204,18 +188,17 @@ data JsonValue
 
 -- 6 primitives --------------------------
 data PrimitiveValue
-    = Boolean Bool
-    | String Text
-    | Number Double
-    | Null
+    = Boolean Bool  -- true | false
+    | String Text   -- "string"
+    | Number Double -- 123, 1.23, 123e0, 123E0
+    | Null          -- null
 
 data ContainerValue
-    = Object Object
-    | Array Array
+    = Object Object -- { "string", PrimitiveValue, ... }
+    | Array Array   -- [ PrimitiveValue, ... ]
 -- END -----------------------------------
 
 newtype Object = Object [(Text, JsonValue)]
-
 newtype Array = Array [JsonValue]
 #+end_src
 ** Strongly define: bool, string, number, null, object and array
@@ -293,15 +276,14 @@ const SCIENTIFIC_NOTATION = {
         another_form: 123e7
     }
 };
-
-
 #+end_src
 ** String: handle escaped quotes and UTF-8
 #+begin_notes
 next we have string, many implementations just assume ascii
+- simple 128 possibilities
+- mostly correct data usually just ascii
 
-json RFC says it must be UTF-8
-
+but json RFC says it must be UTF-8
 the last important thing to take note of is escaped \", we need to detect them properly to get the correct json, everything is done in simd.
 #+end_notes
 - some lazy parsers assume ascii for simplicity
@@ -326,6 +308,10 @@ This is just simply the ascii code table, quite sure we are all very familiar wi
 #+begin_notes
 if it starts with the first bit being 0, it is ASCII
 else if it is 1, it must conform to UTF-8 standards
+
+this is why utf-8 validation is not straight forward
+but the authors fugired out a way to do it with simd
+it was able to detect this pattern in simd
 #+end_notes
 #+begin_src text
 Single byte (ASCII):
@@ -344,19 +330,18 @@ Four bytes:
 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx   (values 65536+)
 First byte starts with 11110
 #+end_src
-- normally outside of strings, no bytes start with 1 in front.
 ** Summary of requirements
 - numbers
-  - negative
-  - floats
+  - negative + -
+  - floats 1.23
 - string
   - utf-8
-  - escaped quotes \"
+  - escaped quotes \" | \\"
 - Rest of structure well formed
   - valid whitespace
   - valid bracket {}, []
-* challenges
-** writing a parser for it
+* Challenges
+** Writing a parser for it
 #+begin_notes
 Im not sure how many of us here has written a recursive descent parser but normally
 how one would write a parser is that
@@ -402,7 +387,6 @@ def peek_token_type(json_str, index):
 #+begin_notes
 mison already implemented some of these but not everything
 #+end_notes
-- Parallelization, split work across multiple cores.
 - SIMD, process more than 8 bytes at a time.
   - Branchless code, no if statements. CPU missed branch prediction.
     - correct, 0-1 cycles
@@ -410,8 +394,25 @@ mison already implemented some of these but not everything
 * About SIMD
 how does simd fit into all of this?
 ** What is simd
+#+begin_notes
+usually when we program, we work with one variable 64 bytes
+this is the sisd model
+one data one instruction
+
+just imagine that instead of working with one number
+we work with 8 in parallel instead 256, 512 bytes
+this is the simd on the bottom left
+#+end_notes
 [[https://pep-root6.github.io/docs/analysis/simd.png]]
 ** SIMD example
+#+begin_notes
+here is an example
+its just adding 2 arrays together with one instruction
+
+normally we need a for loop to do this
+
+but using simd we can do it in one step
+#+end_notes
 #+BEGIN_EXAMPLE
 Adding 4 numbers simultaneously:
 
@@ -465,18 +466,58 @@ const uint64_t whitespace = in.eq({
     _mm512_shuffle_epi8(whitespace_table, in.chunks[0])
 });
 #+end_src
+** Some simd example
+#+begin_notes
+add
+have different types like 8,16,32,64
+subtract
+multiply
+or and xor bitwise
+sll srl
+#+end_notes
+#+ATTR_HTML: :style font-size: 16px;
+| Intrinsic Function         | Instruction | Description                 |
+|----------------------------+-------------+-----------------------------|
+| _mm256_add_epi8(a, b)      | VPADDB      | Add packed 8-bit            |
+| _mm256_add_epi16(a, b)     | VPADDW      | Add packed 16-bit           |
+| _mm256_add_epi32(a, b)     | VPADDD      | Add packed 32-bit           |
+| _mm256_add_epi64(a, b)     | VPADDQ      | Add packed 64-bit           |
+| _mm256_sub_epi64(a, b)     | VPSUBQ      | Subtract packed 64-bit      |
+| _mm256_mullo_epi32(a, b)   | VPMULLD     | Multiply packed 32-bit      |
+| _mm256_mulhi_epi16(a, b)   | VPMULHW     | Multiply packed 16-bit      |
+| _mm256_and_si256(a, b)     | VPAND       | Bitwise AND of 256 bits     |
+| _mm256_or_si256(a, b)      | VPOR        | Bitwise OR of 256 bits      |
+| _mm256_xor_si256(a, b)     | VPXOR       | Bitwise XOR of 256 bits     |
+| _mm256_andnot_si256(a, b)  | VPANDN      | Bitwise AND NOT of 256 bits |
+| _mm256_slli_epi64(a, imm8) | VPSLLQ      | Shift packed 64-bit         |
+| _mm256_srli_epi64(a, imm8) | VPSRLQ      | Shift packed 64-bit         |
 ** When SIMD Shines
+#+begin_notes
 - Regular, predictable data patterns
 - Simple mathematical operations
 - Continuous blocks of memory
 - Identical operations on multiple data points
 - High throughput
-#+BEGIN_EXAMPLE
+#+end_notes
+- Regular, predictable data patterns
+- Simple mathematical operations
+- Continuous blocks of memory
+- Identical operations on multiple data points
+- High throughput
+#+begin_src text
 Perfect for SIMD:
 [1|2|3|4] × 2  = [2 |4 |6 |8 ] ✓
 [R|G|B|A] + 10 = [R'|G'|B'|A'] ✓
-#+END_EXAMPLE
+#+end_src
 ** SIMD's Achilles Heel: Branching
+#+begin_notes
+is harder to do simd
+
+but if we can remove the if statements
+it is possible to do simd
+
+we do it with branchless, simd can be applied to it
+#+end_notes
 - if logic is complex like in parsing unable to do simd
 #+begin_src c++
     if (char_at == '{') {
@@ -500,6 +541,17 @@ Perfect for SIMD:
     }
 #+end_src
 *** Correct branch prediction
+#+begin_notes
+when there is a branch, branch prediction usually use the last 2 times rule
+and assumes that that branch will be taken
+
+this is the cpu instruction pipeline
+there are 5 steps in the cpu
+fetch, decode, execue, memory, write
+so they pipeline so that every time, all stages are busy
+
+if they guess the branch correctly, there is actually no cost
+#+end_notes
 #+begin_src text
 IF = Instruction Fetch
 ID = Instruction Decode
@@ -515,9 +567,13 @@ IF ID EX ME WB          | Instruction 1 (branch)
          IF ID EX ME WB | Instruction 4
 #+end_src
 *** Branch prediction miss
+#+begin_notes
+only at time 4 it realize that it is wrong and need to go to the other branch
+so it has to flush
+#+end_notes
 - example cost 3 cycles but real cpu cost 7-15 cycles
 #+begin_src text
-Time →
+Time →      FLUSH
 1  2  3  4  5  6  7  8  9 10 11 12 13
 IF ID EX ME WB                | Instruction 1 (branch)
    IF ID EX -- -- --          | Instruction 2 (wrong path)
@@ -527,7 +583,15 @@ IF ID EX ME WB                | Instruction 1 (branch)
                IF ID EX ME WB | Correct Instruction 3
 #+end_src
 *** Arithmetic booleans
+#+begin_notes
+LLVM optimization is very complex
+there are many rules for -o2 -o3
+different versions
+gcc vs clang llvm
+these are just examples
+#+end_notes
 - actually LLVM does this for you when you do -o2 and -o3
+#+ATTR_HTML: :style font-size: 16px;
 #+begin_src c++
     // Example 1: Arithmetic with booleans
     bool condition = true;
@@ -591,6 +655,9 @@ IF ID EX ME WB                | Instruction 1 (branch)
 #+begin_notes
 LLVM only good at small cases.
 For larger complex patterns like JSON.
+you must give it as much information as possible to do it.
+if you have an array and if it doesn't know that this is 512 bytes, it cannot do simd optimizations
+
 The authors noticed several patterns in the data.
 Exploited them and made all operations into SIMD.
 Also by batching operations together like maybe do 1 type of operation over the entire string
@@ -929,25 +996,57 @@ flowchart TD
 [[file:attachments/optimized-ir.png]]
 
 * Simdjson Implementation
-** simdjson Architecture Overview
+** Simdjson Architecture Overview
+#+begin_notes
+indexing structure, basically to find the places where the data is at
+object, array, strings
+validate UTF-8
 1. Stage 1: Structural Index Creation (find location of important markers)
    1. Find structural characters ({,},[,],",,:)
-   2. Identify string boundaries
-   3. Locate whitespace
+   2. Locate whitespace
+   3. Identify string boundaries
    4. Validate UTF-8 encoding
-   5. Detect pseudo-structural characters
+generating output tape to navigate
+parsing
+1. Stage 2: Parsing & Tape Building
+   1. Validate document structure
+   2. Build navigable tape representation
+      1. Parse atomic values (strings, numbers, true/false/null)
+      2. Convert numbers to machine formats
+      3. Normalize strings to UTF-8
+#+end_notes
+1. Stage 1: Structural Index Creation (find location of important markers)
+   1. Find structural characters ({,},[,],",,:)
+   2. Locate whitespace
+   3. Identify string boundaries
+   4. Validate UTF-8 encoding
 2. Stage 2: Parsing & Tape Building
-   1. Parse atomic values (strings, numbers, true/false/null)
-   2. Validate document structure
-   3. Build navigable tape representation
-   4. Convert numbers to machine formats
-   5. Normalize strings to UTF-8
+   1. Validate document structure
+   2. Build navigable tape representation
+      1. Parse atomic values (strings, numbers, true/false/null)
+      2. Convert numbers to machine formats
+      3. Normalize strings to UTF-8
 ** simdjson diagram
+#+begin_notes
+the actual way it is processed is
+reading in the input string
+convert to bytes
+code interface is working on 512 byte chunks
+if there are smaller divisions, it will split it up interally inside and work on those
+
+find the important locations called structural locations as a bitmask
+
+bitmask convert to index
+
+parse the true false null
+
+output the final tape
+#+end_notes
 #+begin_src text
     JSON INPUT STRING
    "{"name": "value"}"
             ⬇
-     64-BYTE CHUNKS
+     512-BYTE CHUNKS -> 512x1,256x2,128x4
    ╔═════════════════╗
    ║"{"name": "val...║
    ╚═════════════════╝
@@ -963,7 +1062,7 @@ flowchart TD
    (Parse & Build Tape)  build tape to navigate
             ⬇
        FINAL TAPE
-[root, {, "name", "value", }]
+[.........................]
 #+end_src
 ** Stage 1: Structural and Pseudo Structural Index Construction
 *** Input and Output
@@ -971,13 +1070,13 @@ flowchart TD
 - Output:
   - Bitmask of structural chars
   - Array of integer indices marking structural elements
-
 *** Key Responsibilities
 1. Character encoding validation (UTF-8)
 2. Locate structural characters ([, {, ], }, :, ,)
 3. Identify string boundaries
    1. Handles escaped characters and quoted regions
 4. Find pseudo-structural characters (atoms like numbers, true, false, null)
+
 ** Stage 2: Structured Navigation
 *** Input and Output
 - Input: Array of structural indices from Stage 1
@@ -999,7 +1098,16 @@ flowchart TD
   - Strings: Pointer to string buffer
 
 * Stage 1: Structural and Pseudo Structural Index Construction
+#+begin_notes
+this is how the high level overview of this stage, the c++ code looks like
+the important thing is this _mm256_shuffle_epi8 == VPSHUFB
+it is basically a small nibble level lookup table with 16 slots
+i will talk more about this later
+#+end_notes
+_mm256_shuffle_epi8 == VPSHUFB
+#+ATTR_HTML: :style font-size: 16px;
 #+begin_src cpp
+  // _mm256_shuffle_epi8 == VPSHUFB
   const auto whitespace_table = simd8<uint8_t>::repeat_16(' ', 100, 100, 100, 17, 100, 113, 2, 100, '\t', '\n', 112, 100, '\r', 100, 100);
 
   const auto op_table = simd8<uint8_t>::repeat_16(
@@ -1026,21 +1134,40 @@ flowchart TD
   return { whitespace, op };
 #+end_src
 ** Stage 1: 1 Vectorized Classification and Pseudo-Structural Characters
+#+begin_notes
+we basically looking for these locations these are important loctains so that we can parse in stage 2
+notice that the escaped " are not selected
+this part will talk about how the authors did it in simd
+the trick is to use a look up table
+#+end_notes
 - Want to obtain location of structural characters  ({, }, [, ], :, ,)
   - pseudo-structural - Any non‐whitespace character that immediately follows a structural character or whitespace
   - useful for parsing, we need this bit mask to build tape
 #+begin_src text
 { "\\\"Nam[{": [ 116,"\\\\" , 234, "true", false ], "t":"\\\"" }
 __1______________1___1________1____1_______1________1___1_______
+______0_____________________________________________________0___ escaped quotes "
 #+end_src
 *** Vectorized Classification
 #+begin_notes
 We need to classify structural characters
 each different class gets its own type
+comma
+colon
+brackets, array group 4
+whitespace
 we need to do this classification fast we will use a look up table to do the classification, basically O(1)
-#+end_notes
+notice they have only 1 bit at differnt locations
+we then use movemask to split them up into bitmasks
 
-#+ATTR_HTML: :style font-size: 60%;
+vpshufb is done for the low 4 nibble so we can find that this is a
+c a b d b d
+high 4 nibble 2 3 5 5 7 7
+
+then we do bitwise and
+if we know both bytes then we can shift it to the correct
+#+end_notes
+#+ATTR_HTML: :style font-size: 50%;
 | code points | character   | desired value |   bin |
 |-------------+-------------+---------------+-------|
 |        0x2c | `,` (comma) |             1 | 00001 |
@@ -1054,14 +1181,30 @@ we need to do this classification fast we will use a look up table to do the cla
 |        0x0d | CR          |             8 | 01000 |
 |        0x20 | SPACE       |            16 | 10000 |
 |      others | any other   |             0 | 00000 |
-- PMOVMSKB
-  - _mm256_movemask_epi8 to extract the bits into bitmap
+#+begin_src text
+HIGH_4 AND LOW_4 == 0000 0100 // it must be a bracket
+
+{ "\\\"Nam[{": [ 116,"\\\\" , 234, "true", false ], "t":"\\\"" }
+____________________1_______1____________1________1_____________ comma mask
+_____________1_________________________________________1________ colon mask
+1_________11___1_________________________________1_____________1 bracket mask
+#+end_src
 *** VPSHUFB: Vector Permute Shuffle Bytes
 #+begin_notes
 If you have any experience with hashmaps, they are actually very slow
 they are not truely o(1) lookup
 the only true O(1) lookup structures are actually arrays, index + offset
 hashing function is a fake O(1)
+
+if the first bit is a 0, it will look at the lower 4 nibble
+like an index into an array
+lets take 0x01 for example, it will go into the table here, look for the item in the first index
+and put it in that location
+so we get '1'
+if the high bit is 1, then it will be null byte 0x00
+
+we can classify 64 chars in 3-4 instructions now
+that is just 4 cycles compared to a big if else
 #+end_notes
 - basically a one instruction lookup table using the 4 lowest bit(nibble)
   - 0000 XXXX
@@ -1069,7 +1212,6 @@ hashing function is a fake O(1)
 int main() {
     // Lookup table for hex digits "0123456789abcdef"
     __m256i lut = _mm256_setr_epi8(
-        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
         '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'
     );
 
@@ -1104,6 +1246,11 @@ void print_bytes(__m256i v) {
 }
 #+end_src
 *** Simple example
+#+begin_notes
+skip if no time
+vpshufb is done for the low 4 nibble and high 4 nibble
+if we know both bytes then we can shift it to the correct
+#+end_notes
 | code points | character   | desired value |   bin |
 |        0x3a | `:` (colon) |             2 | 00010 |
 |        0x0a | LF          |             8 | 01000 |
@@ -1133,15 +1280,9 @@ high nibble table
 |     | high | 1000 | 0010 |
 | AND |      | 1000 | 0010 |
 |     |      |    8 |    2 |
-
 *** Stage 1: Bitmap to Array index
-*** input data
 #+begin_notes
 In stage 1, we our functions take in 64 byte * 8 bit blocks
-and output bitmasks of 64 bits each
-we have several bit mask types
-
-quotes, between quotes, structure, whitespace
 
 however these masks are sparse, sometimes it can be 4 char before we a faced with a 1
 sometimes the spaces are 4, and the spaces could be 40.
@@ -1160,14 +1301,18 @@ _1____________1_1__________1_1____1_______1_____1__1__________1_: W
 - take Q for example, we want to convert Q's bit mask into a list of indexes
   - [2, 12, 22, 27, 37, 42, 54, 56, 58, 62]
 *** extraction
+#+begin_notes
+compiler will automatically optimize this for you
+#+end_notes
 - 2 instructions
-  - tzcnt count trailing least significant 0 bits
-  - blsr which delete the last bit.
+  - TZCNT count trailing least significant 0 bits
+  - BLSR which delete the last bit.
 #+begin_src text
 a = 1010000
-idx = tzcnt(a) // 4
-a = blsr(a)    // 1000000
-idx = tzcnt(a) // 6
+idx = tzcnt(a) // 4       count 0 after lowest bit
+a = blsr(a)    // 1000000 remove lowest set bit
+idx = tzcnt(a) // 6       count 0 after lowest bit
+[4, 6]
 #+end_src
 *** Naive Implementation
 #+begin_notes
@@ -1191,6 +1336,11 @@ void extract_set_bits_unoptimized(uint64_t bitset, uint32_t* output) {
 }
 #+end_src
 *** Minimal branching implementation
+#+begin_notes
+unfortunately in this case it cannot avoid the if else check
+so the trick we do is that we do 8 times
+in one branch check
+#+end_notes
 #+ATTR_HTML: :style font-size: 16px; width: 95%;
 #+begin_src c++
 void extract_set_bits_optimized(uint64_t bitset, uint32_t* output) {
@@ -1232,6 +1382,13 @@ void extract_set_bits_optimized(uint64_t bitset, uint32_t* output) {
 #+end_src
 ** Stage 1: 2 Eliminated escaped or quoted substring
 *** Get backslash
+#+begin_notes
+next we have to get the quotes
+the biggest problem is that we have to escape invalid quotes
+this part is very logic intensive and may not make sense at first
+i will just quickly go through this without explaining too much
+I think you can read the paper to understand this part instead
+#+end_notes
 #+ATTR_HTML: :style font-size: 16px; width: 120%; margin-left: -10%;
 #+begin_src text
 { "\\\"Nam[{": [ 116,"\\\\" , 234, "true", false ], "t":"\\\"" }: input data
@@ -1244,8 +1401,9 @@ ___1__________________1__________________________________1______: S = starts = b
 // we get the first backslash of every group
 #+end_src
 *** Get odd length sequences starting on an odd offset
-#+ATTR_HTML: :style font-size: 16px;
+#+ATTR_HTML: :style font-size: 14px;
 #+begin_src text
+{ "\\\"Nam[{": [ 116,"\\\\" , 234, "true", false ], "t":"\\\"" }: input data
 _1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1: O (constant)
 ___111________________1111_______________________________111____: B = backslash_bits
 ___1__________________1__________________________________1______: S = starts = bits & inverted
@@ -1268,6 +1426,7 @@ ______1_____________________________________________________1___: OCO = OC & ~B
 ______1_____________________________________________________1___: OCO = OC & ~B
 1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1: E (constant)
 ______1_____________________________________________________1___: OD2 = OCO & E
+{ "\\\"Nam[{": [ 116,"\\\\" , 234, "true", false ], "t":"\\\"" }: input data
 // this shows two odd-length sequence starting on an odd offset
 #+end_src
 *** Get odd length sequences starting on an even offset
@@ -1303,6 +1462,11 @@ ______1_____________________________________________________1___: OD = OD1 | OD2
 // these " are escaped and thus are counted as text instead of structural characters
 #+end_src
 *** Eliminated escape
+#+begin_notes
+this is the last step so we remove invalid quotes that are backslashed
+notice the CLMUL instruction below, we will talk about that one
+how to convert the start and end locations into a continuous mask
+#+end_notes
 #+begin_src text
 { "\\\"Nam[{": [ 116,"\\\\" , 234, "true", false ], "t":"\\\"" }: input data
 __1___1_____1________1____1________1____1___________1_1_1___11__: Q = quotes
@@ -1311,7 +1475,12 @@ ______1_____________________________________________________1___: OD
 __1_________1________1____1________1____1___________1_1_1____1__: Q &= ~OD
 __1111111111_________11111_________11111____________11__11111___: CLMUL(Q,~0)
 #+end_src
-*** Sweeping
+*** Get location between quotes mask
+#+begin_notes
+its basically this operation
+we can use this to get the area between the quates
+#+end_notes
+#+ATTR_HTML: :style font-size: 18px;
 #+begin_src c++
 uint64_t xorShiftOperations(uint64_t num, bool rightShift, bool tutorial = false) {
     uint64_t result = num;
@@ -1344,7 +1513,8 @@ uint64_t xorShiftOperations(uint64_t num, bool rightShift, bool tutorial = false
 #+end_src
 *** Sweeping
 #+begin_src text
-Testing left shift:
+Final result:
+0x00      00111111 11110000 00000111 11000000 00011111 00000000 00001100 11111000       0x07
 Initial number:
 0x00      00100000 00001000 00000100 00100000 00010000 10000000 00001010 10000100       0x07
 After left shift by 1:
@@ -1400,32 +1570,18 @@ XOR  00100___  (X8 means 4 << 3)
        111100  (all XORed together)
 -------------
 #+end_src
-*** Sweeping implemented by CLMUL, pclmulqdq
-- CLMUL(inputJsonBitmask, EvenBitMask)
-#+begin_src c++
-uint64_t result = num;
-for (int i = 1; i <= 64; i++) {
-    result ^= (num << i);
-}
-// 11111111 11111111 11111111 11111111
-
-//            input
-// XOR (input <<  1)
-// XOR (input <<  2)
-// XOR (input <<  4)
-// XOR (input <<  8)
-// XOR (input << 16)
-// XOR (input << 32)
-// ----------------
-//       quote mask
-// ----------------
-#+end_src
 *** finally get quote mask
 #+begin_src text
 { "\\\"Nam[{": [ 116,"\\\\" , 234, "true", false ], "t":"\\\"" }: input data
 __1111111111_________11111_________11111____________11__11111___: CLMUL(Q,~0)
 #+end_src
 ** Stage 1: 3 Character-Encoding Validation
+#+begin_notes
+next we have to validate the UTF-8
+- most data is ascii, first thing to do is check if the first bit of every byte is 0
+- if it is, its all validated
+- if not we go through the algorithm that the authors wrote
+#+end_notes
 1. Initial ASCII Fast Path, first bit == 0
 2. Main algorithm
    1. Range check(0xF4 saturated subtract)
@@ -1437,6 +1593,12 @@ Single byte (ASCII):
 Values start with 0, remaining 7 bits for data
 #+end_src
 *** Continuation Byte validation
+#+begin_notes
+i had showed this just now so we have to detect this pattern
+if it is 110 then the next must be 10 to be valid
+if its 00 then its nat valid lets see how they
+implement this in simd
+#+end_notes
 #+begin_src text
 Single byte (ASCII):
 0xxxxxxx                     (values 0-127)
@@ -1454,7 +1616,19 @@ Four bytes:
 1111xxxx 10xxxxxx 10xxxxxx 10xxxxxx   (values 65536+)
 First byte starts with 11110
 #+end_src
-*** map to values
+*** map to values (VPSHUFB again!)
+#+begin_notes
+we look at the high nibble for this since only the high nibble is involved
+if it is ascii, we use the lookup table to get it to 1
+if it is 10xx we set it to 0
+if 1100 2
+1110 3
+1111 4
+
+look at the example below, notice a pattern?
+it will be 4000 if it is length 4, length 3 is 300
+#+end_notes
+
 | high | Dec |   | high | Dec |
 |------+-----+---+------+-----|
 | 0000 |   1 |   | 1000 |   0 |
@@ -1474,6 +1648,14 @@ First byte starts with 11110
 3 0 0
 #+end_src
 *** SIMD validation algorithm
+#+begin_notes
+this is the algorithm, we shift right-1 add back
+shift 2 minus 2 add back
+notice we get a 4 3 2 1 3 2 1 1 1 1
+at the end of it, there should be nothing bigger than 4
+and no 0 if have 0 its wrong
+next show example of a wrong one
+#+end_notes
 #+begin_src text
 4 0 0 0 3 0 0 2 0 1 1 1
   4 0 0 0 3 0 0 2 0 1 1 1 // <<= 1 byte, shift left by 1 byte
@@ -1491,6 +1673,12 @@ First byte starts with 11110
 // none of the numbers are bigger than the original
 #+end_src
 *** SIMD validation algorithm: Invalid example
+#+begin_notes
+look at this part, after 4 its supposed to be 4000
+but i put a 3 there
+lets look at a bad example
+we do the same steps shuft left subtract 1
+#+end_notes
 #+begin_src text
 2 0 0 0 4 3 0 0
   2 0 0 0 4 3 0 // shift left 1
@@ -1510,6 +1698,29 @@ First byte starts with 11110
 * Stage 2: Building the Tape
 ** Stage 2: The Tape
 *** Three Categories of Tape Entries
+#+begin_notes
+after finding the location of everything and
+knowing that it is valid
+
+i will go through how they make this tape and parse the values
+
+a tape is made up of entries, each entry is 64 byte
+this is for byte alignment
+
+direct values are the simplest
+n must be null, t must be true, f must be false
+
+numbers will take 2 entry 128 bytes
+
+strings take 1 entry and point to another buffer where the real string is at
+this allows our stucture to be quickly traversable and not polluted with strings of unknown length
+
+last is the structural entrys
+they take 1 entry and the data on the right is the location of the other end of the bracket
+in the tape
+
+allows us to skip arrays and objects if we want to
+#+end_notes
 1. Direct Values (Atoms)
    - null, true, false
    - numbers (integers and floats) - takes 2 tape entries
@@ -1521,6 +1732,13 @@ First byte starts with 11110
    - Object braces {,}
    - Contains jump indices
 *** Basic Structure
+#+begin_notes
+so for string and structural
+the payload is the offset to the buffer
+jump index to the other location of the structure in the tape
+
+else the other one is a type marker
+#+end_notes
 - Tape is array of 64-bit words
 - Each entry: =TYPE_MARKER × 2^56 + payload=
 - High 8 bits: Type information
@@ -1533,6 +1751,12 @@ First byte starts with 11110
    8 bits      56 bits
 #+END_SRC
 *** Direct Values (Atoms)
+#+begin_notes
+these just tell you the type
+n for null
+t for true
+f for false
+#+end_notes
 #+BEGIN_SRC text
 01101110 00000000 00000000 00000000 00000000 00000000 00000000 00000000
    ^'n' null
@@ -1602,6 +1826,10 @@ Binary:
 Hex: 0x7D00000000000000
 #+END_SRC
 *** Array Example
+#+begin_notes
+see here i can have this index here to jump to the other side without reading the array
+next noe is more important
+#+end_notes
 #+begin_src text
 array = [1,2,3]
 #+end_src
@@ -1616,8 +1844,10 @@ array = [1,2,3]
 |    6 | value   |      | 0x0000000000000003 |
 |    7 | array   | ]--0 | 0x5D00000000000000 |
 |    8 | other   |      |              other |
-#+END_SRC
 *** JSON Document
+#+begin_notes
+this is just an example of how an object would look like
+#+end_notes
 #+BEGIN_SRC json
 {
   "name": "John",
@@ -1646,6 +1876,16 @@ Idx  Type    Payload   Description
 - Predictable memory layout
 ** Stage 2: 1 Number parsing
 *** Understanding the is_all_digits
+#+begin_notes
+when parsing for numbers, there is no choice but to use if else
+
+however the authors noticed many numbers are longer than 8 digits
+so they develop a way to check and parse numbers of 8 digit size
+
+this is the algo for fast digit check
+we run this exact algorithm and if the output is 3333
+it must all be digits, let me explain why
+#+end_notes
 Fast 8 digit check
 #+begin_src c++
 uint64 high_nibble = val & 0xF0F0F0F0F0F0F0F0;
@@ -1657,6 +1897,8 @@ bool is_all_digits = combined == 0x3333333333333333;
 #+begin_notes
 So there are 2 things to check, less than 0x30 which is 0x2F up here
 0x3A which is bigger than 9 0x39 down here
+see a pattern notice all of these are 3
+and notice the one behind is 0123..9
 #+end_notes
 - notice all high nibble of valid digits are 3
 #+ATTR_HTML: :style font-size: 80%;
@@ -1677,6 +1919,11 @@ So there are 2 things to check, less than 0x30 which is 0x2F up here
 |------+------+-----------+---------------+------------------------|
 | ':'  | 0x3A | 0011 1010 | Colon         |                        |
 *** Step 1: Initial masking of high nibbles
+#+begin_notes
+lets go throuh an example first check must be that the
+high nibble is all 3
+very easy in c++ it looks like this
+#+end_notes
 #+begin_src c++
 uint64 high_nibble = val & 0xF0F0F0F0F0F0F0F0;
 #+end_src
@@ -1693,10 +1940,21 @@ Mask:           F0 F0 F0 F0 F0 F0 F0 F0
 Result1:        30 30 30 30 30 30 30 30
 #+END_EXAMPLE
 *** How the low nibble check works
+#+begin_notes
+we want this range to be illegal
+we do that with carry bit detection
+if we add some number, it will over flow and affect the next bit and cause the number to be bigger than 3
+#+end_notes
 - we want to ensure that low nibble is within 0xX0 - 0xX9
   - 0xXA - 0xXF is illegal
-    * Analyzing Carry Detection with Binary
+    - Analyzing Carry Detection with Binary
 *** Case 1: Valid Digit (0x39 = '9')
+#+begin_notes
+they chose 0110 is because 9 + 6 = 15
+it is still within
+
+imagine if the value is 10, invalid, + 6 will overflow
+#+end_notes
 #+BEGIN_EXAMPLE
 0x39 = 0011 1001  (Original value '9')
 0x06 = 0000 0110  (Value we add)
@@ -1751,6 +2009,9 @@ If original > 9: Carry affects high nibble
 #+END_EXAMPLE
 
 *** Step 3: Example with valid digits (0-9)
+#+begin_notes
+skip
+#+end_notes
 Take "12345678":
 #+BEGIN_EXAMPLE
 
@@ -1784,6 +2045,9 @@ OR together:    33 33 33 33 34 33 33 33 ≠ 0x3333...
 #+END_EXAMPLE
 
 *** Why It Works
+#+begin_notes
+skip
+#+end_notes
 1. First part (val & 0xF0F0...):
    - Isolates high nibbles
    - Must be 0x30 for valid digits
@@ -1833,6 +2097,18 @@ High:      40 ≠ 30 -> Fails
 
 This algorithm is a beautiful example of bit manipulation that turns what would normally be 8 comparisons into a single mathematical test.
 *** Understanding SIMD-Based Fast Eight-Digit Number Parsing
+#+begin_notes
+after we know that it is all digits,
+we need to parse the number into a valid number
+we wrote this algo before
+the authors did a simd version which looks like this
+it looks scary
+i will explain each step
+notice the weird pattern 10 1 10 1
+notice the weird pattern 100 1 100 1
+notice the weird pattern 10000 1 10000 1
+you may already guess what is going to happen
+#+end_notes
 Convert ASCII string of 8 digits to integer using SIMD instructions.
 Example: "12345678" -> 12345678
 #+begin_src c++
@@ -1851,6 +2127,9 @@ uint32_t parse_eight_digits_unrolled(char *chars) {
 }
 #+end_src
 *** Step 1: Convert ASCII to Numeric Values
+#+begin_notes
+remove the high nibble so that they are int8
+#+end_notes
 #+begin_src c++
   __m128i ascii0 = _mm_set1_epi8(’0’);
   __m128i number_ascii = _mm_loadu_si128((__m128i *)chars);
@@ -1867,6 +2146,11 @@ Instruction:    _mm_sub_epi8 (PSUBB - packed subtract bytes)
 #+END_EXAMPLE
 
 *** Step 2: Multiply Alternate Digits by 10 and Add
+#+begin_notes
+notice the weird pattern 10 1 10 1
+multiply the one infront by 10
+add them to each other
+#+end_notes
 #+begin_src c++
   __m128i mul_1_10 = _mm_setr_epi8(10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1);
   __m128i t1 = _mm_maddubs_epi16(in, mul_1_10);
@@ -1884,7 +2168,9 @@ Instruction: _mm_maddubs_epi16 (PMADDUBSW - multiply and add unsigned bytes to s
 
 *** Step 3: Multiply Alternate 16-bit Values by 100
 #+begin_notes
-what is the next step ?
+then we do the same thing again
+100
+next is it 10000?
 #+end_notes
 #+begin_src c++
   __m128i mul_1_100 = _mm_setr_epi16(100, 1, 100, 1, 100, 1, 100, 1);
@@ -1921,6 +2207,9 @@ Instruction: _mm_packus_epi32 (PACKUSDW - pack with unsigned saturation)
 #+END_EXAMPLE
 
 *** Step 5: Final Combine with Multiply by 10000
+#+begin_notes
+finally we do the 10000 and get the answer
+#+end_notes
 #+begin_src c++
   __m128i mul_1_10000 = _mm_setr_epi16(10000, 1, 10000, 1, 10000, 1, 10000, 1);
   __m128i t4 = _mm_madd_epi16(t3, mul_1_10000);
@@ -1936,12 +2225,17 @@ Sum:           12345678    (final 32-bit result)
 Instruction: _mm_madd_epi16 (PMADDWD again)
 #+END_EXAMPLE
 *** Summary: Why This is Fast
+#+begin_notes
+simd fast
+save instructions
+it takes aronud 17 cycles instead of much more
+#+end_notes
 1. Parallel Processing:
    - Processes multiple digits simultaneously
    - Uses CPU's SIMD capabilities efficiently
 
 2. Instruction Count:
-   - Traditional: ~8 loads + ~8 multiplies + ~7 adds
+   - Traditional: ~8 loads + ~8 multiplies + ~7 adds ~23 inst
    - SIMD: ~7 total instructions
 
 3. Latency Analysis on Haswell:
@@ -1952,6 +2246,12 @@ Instruction: _mm_madd_epi16 (PMADDWD again)
    - Total latency: ~17 cycles
 * Actual c++ code implementation and optimization tricks in the code base
 ** SIMD8 zero cost "abstraction"
+#+begin_notes
+actual coding style
+how they made their life easier
+this is how they made their classes
+heavy reuse of templating
+#+end_notes
 #+ATTR_HTML: :style font-size: 40%; width: 50%
 #+begin_src text
                           +---------------------+
@@ -1988,6 +2288,10 @@ base8_numeric<uint8_t>  // Adds numeric operations
 simd8<uint8_t>         // Final implementation
 #+end_src
 *** Quality of life abstractions
+#+begin_notes
+they overwrote the max min <= >= operators to make using simd intuitive
+look here got add substract bla bla
+#+end_notes
 #+ATTR_HTML: :style width: 140%; margin-left: -20%;
 #+begin_src c++
   template<>
@@ -2010,6 +2314,9 @@ simd8<uint8_t>         // Final implementation
   };
 #+end_src
 *** Quality of life abstractions
+#+begin_notes
+same thing
+#+end_notes
 #+ATTR_HTML: :style width: 140%; margin-left: -20%;
 #+begin_src c++
     // Bit-specific operations
@@ -2033,7 +2340,12 @@ simd8<uint8_t>         // Final implementation
 #+end_src
 ** Template Metaprogramming & CRTP vs. Virtual Functions (Dynamic Binding)
 #+begin_notes
-allows very aggressive inlining: The compiler can inline these functions, reducing function call overhead.
+here iis the thing
+this template meta programming means using template which is a direct substitution that is known at compile time
+this allows the LLVM to aggresively inline code
+inlining allows for max information so it can optimize properly
+The compiler can inline these functions, reducing function call overhead.
+no virtual function
 no run time indirection. Since the dispatch is resolved at compile time, there's no need for a vtable lookup.
 #+end_notes
 - **Compile-Time Polymorphism with Templates/CRTP:**
@@ -2052,6 +2364,12 @@ no run time indirection. Since the dispatch is resolved at compile time, there's
 - **No Runtime Indirection**
 *** Dynamic Binding with Virtual Functions
 #+begin_notes
+they prefer early binding in template rather than virtual functions
+virtual functions are like interfaces in java
+the reason why java is still fast when doing this is because
+java has a JIT, c++ does not
+java can optimize code at runtime by observation
+while c++ must be optimized at compile time
 - **Runtime Overhead:**
   - Each call incurs an extra indirection (vtable lookup).
   - Virtual calls are generally not inlined because the exact function is only known at runtime.
@@ -2079,6 +2397,11 @@ no run time indirection. Since the dispatch is resolved at compile time, there's
 - **Comparable to Java Interfaces:**
 *** Why C++ Chooses Compile-Time Polymorphism
 #+begin_notes
+this makes c++ code fast
+deterministic
+but cause JIT come in, it might jitter, first slow
+fast then still have GC
+easier analysis
 - **Performance Sensitivity:** In scenarios like high‑performance parsing (as in simdjson), every extra cycle counts.
 - **Deterministic Overhead:** With templates/CRTP, the performance characteristics are known at compile time—there’s no hidden cost of runtime dispatch.
 - **Contrast with Java:**
@@ -2091,6 +2414,9 @@ no run time indirection. Since the dispatch is resolved at compile time, there's
 | • Performance changes during execution | • Performance known at compile time     |
 | • Requires "warm up" for optimization  | • Consistent from first call            |
 ** Inline Functions & Compile-Time Inlining
+#+begin_notes
+they did inlining to help the compiler get optimal code
+#+end_notes
 - **Technique:** Functions are marked with `simdjson_inline` to encourage inlining.
 - **Why?** Inlining eliminates function call overhead for tiny, frequently used functions.
 - **Example from simdjson:**
@@ -2109,6 +2435,12 @@ simdjson_inline Child operator|(const Child other) const {
 #+END_SRC
 - **Note:** The use of inlining on all small operations (e.g. arithmetic, bitwise operators) ensures maximum performance.
 ** C++ Casts in simdjson: Performance Considerations
+#+begin_notes
+here we talk about the casting they use
+they only use static_cast and reintepret_cast which is also another
+0 cost compile time casting
+while the other 2 are runtime checked
+#+end_notes
 - In high‑performance C++ code, using the proper cast is essential for both safety and speed.
 - C++ provides several cast operators:
   - **static_cast**: Compile‑time conversions.
@@ -2116,6 +2448,9 @@ simdjson_inline Child operator|(const Child other) const {
   - **const_cast**: Remove constness.
   - **dynamic_cast**: Runtime-checked casts (with RTTI).
 *** static_cast for CRTP Efficiency
+#+begin_notes
+for example this static cast is used to make sure the other type is the same
+#+end_notes
 - known at compile‑time, ensuring zero‑cost abstraction.
 #+BEGIN_SRC c++
   template<typename Child>
@@ -2133,6 +2468,7 @@ simdjson_inline Child operator|(const Child other) const {
   - The `static_cast<Child*>(this)` converts the base class pointer to the derived type.
 *** reinterpret_cast for SIMD Memory Operations
 #+begin_notes
+convert array into 256 byte for simd use
 - **Why?:** When working with intrinsics (e.g. AVX2), you need to treat data as a special type (like `__m256i`), and reinterpret_cast does this with no extra overhead.
 #+end_notes
 - Reinterpret raw memory (such as an array of bytes) as SIMD register types.
@@ -2160,6 +2496,11 @@ simdjson_inline Child operator|(const Child other) const {
 - **Avoided Casts:**
   - **dynamic_cast** and **const_cast** are not used in performance-critical sections to prevent unnecessary runtime overhead.
 ** Why Error Codes Outperform Exceptions
+#+begin_notes
+error code does not unwind stack like how except does
+more linera flow
+predictable branching
+#+end_notes
 - Zero-cost error handling: No stack unwinding or EH tables
 - Better compiler optimizations: Linear control flow
 - Predictable branch patterns: CPU pipelining friendly
@@ -2170,6 +2511,9 @@ simdjson_warn_unused error_code minify(const uint8_t *buf, size_t len, uint8_t *
 }
 #+end_src
 *** Assembly Comparison: Error Code Path (simdjson style)
+#+begin_notes
+error path
+#+end_notes
 #+begin_src asm
 check_ascii:
   vptest %ymm0, %ymm1
@@ -2181,6 +2525,9 @@ check_ascii:
   ret
 #+end_src
 *** Assembly Comparison: Exception Path
+#+begin_notes
+except path show the stack trace there
+#+end_notes
 #+begin_src asm
 check_ascii:
   vptest %ymm0, %ymm1
@@ -2208,6 +2555,8 @@ check_ascii:
    - Critical for SIMD optimizations
 ** Memory Alignment & Padding
 #+begin_notes
+- we working with SBE should know about this
+  i'll skip its just that aligned access is faster than non aligned access
 - simdjson uses types such as padded_string and padded_string_view to guarantee ample padding.
 #+end_notes
 - Correct memory alignment (and extra padding) is crucial for SIMD operations; unaligned accesses can severely hurt performance.
@@ -2223,6 +2572,13 @@ simdjson::padded_string_view get_padded_string_view(const char *buf, size_t len,
 }
 #+END_SRC
 ** Loop Unrolling and Vectorized Processing
+#+begin_notes
+loop unrolling is debatable sometimes it helps
+sometimes is bad
+in this case it helps because we are using fixed 512 byte sizes
+do not unroll things if you dont know the size
+it is harder for complier to optimize that
+#+end_notes
 - **Key idea:** Unroll loops to manually do more things in one loop
 #+begin_src c++
 void extract_set_bits_optimized(uint64_t bitset, uint32_t* output) {
