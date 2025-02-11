@@ -1,143 +1,150 @@
-#+TITLE: Parsing Gigabytes of JSON per Second 每秒解析千兆字节的 JSON
-#+AUTHOR: Wong Ding Feng Wong Ding Feng
+#+TITLE: 每秒解析千兆字节的 JSON
+#+AUTHOR: Wong Ding Feng
 #+LANGUAGE: en
 #+OPTIONS: num_lines:t toc:1 ^:nil
 #+REVEAL_THEME: moon
 #+EXPORT_SELECT_STRINGS: ((org-export-string "latex") "\\usepackage{amsmath} \\usepackage{amsthm} \\usepackage{amssymb}")
-
-* Objectives 目标
+#+REVEAL_HEAD_PREAMBLE: <style> .reveal { font-size: 32px; } .reveal .slides { margin: 0.5em; } </style>
+* 目标
 #+begin_notes
 Too many things to talk about
 pick and choose some
 #+end_notes
-- Describe the real problem with JSON  描述 JSON 真正的问题
-  - Techniques and strategies to make it fast    提高速度的技术和策略
-- Simple primer on bitwise operations and simd   位运算和 SIMD 简介
-- simdjson architecture   simdjson 架构
-- How this is used to make simdjson   这如何用于构建 simdjson
-
-* Problem 问题
-** How fast is your hardware  你的硬件有多快
+- 为什么 JSON 很慢?
+- 位运算和 simd 简明入门
+- simdjson 架构
+- 使用的 C++ 技术
+* 问题
+** SBE vs JSON
 #+begin_notes
-One core on your computer can actually read and write around 3GB of data per second
+the reason why sbe is because we have the schema
+- we know how far to jump in the array to get data
+- there is no key to read and guess
+- sometimes we have the offset to jump forward
+while for json we need to guess what the data means
+there is also validation
 #+end_notes
-
-CPU: AMD Eng Sample: 100-000000534-40_Y: 4.6 GHz CPU：AMD Eng 样本：100-000000534-40_Y：4.6 GHz
-Network: 1Gb~100MB/s, 10Gb~1000MB/s 网络：1Gb 约 100MB/s, 10Gb 约 1000MB/s
-
-One core can read direct text at this speed: 单核可以以此速度直接读取文本:
 #+begin_src text
-Testing dd read:
-1280+0 records in
-1280+0 records out
-10737418240 bytes (11 GB, 10 GiB) copied, 3.88076 s, 2.8 GB/s
+Binary Format (Schema: string[10], uint8)
+┌─────────────────┬───────┐
+│ "John Doe"      │ 42    │
+└─────────────────┴───────┘
+  |               └─ Age: Fixed 1 byte, parser knows to read exactly 1 byte
+  └─ Name: Fixed 10 bytes, parser knows to read exactly 10 bytes
+                     (padded with spaces)
+JSON Format
+┌──────────────────────────────────┐
+│ {"name":"John Doe","age":42}     │
+└──────────────────────────────────┘
+  |     |           |     └─ Parser must scan until it finds closing brace
+  |     |           └─ Parser must scan for quotes and ":"
+  |     └─ Parser must scan for quotes and ":"
+  └─ Parser must scan character by character, looking for valid JSON tokens
 #+end_src
-
-** Why is json interesting?  为什么 JSON 有趣？
-- most data is in json   大多数数据都是 JSON 格式
-- basically double the speed means you can parse 2x as much data   基本上速度翻倍意味着你可以解析 2 倍的数据
-  - duplicating hardware for free     免费获得硬件性能的倍增
-
+** 为什么 json 有趣?
+#+begin_notes
+- basically double the speed means you can parse 2x as much data
+- duplicating hardware for free
+#+end_notes
+- 大部分数据都是 json 格式
 | parser    | Skylake | Cannon Lake | speed  |
 |-----------+---------+-------------+--------|
 | simdjson  |     1.4 |         1.3 | fast   |
 | RapidJSON |    0.56 |        0.44 | slow   |
 | sajson    |    0.93 |        0.84 | normal |
-
-** Why you should be interested  为什么你应该感兴趣
-- configurable, increase speed   可配置性，可提升速度
-
+** 为什么你应该感兴趣
+#+begin_notes
+this is the breakdown
+can configure, if you remove utf-8 check
+its even faster
+#+end_notes
+- 可配置,提高速度
 #+ATTR_HTML: :style background-color: white;
 [[https://arxiv.org/html/1902.08318v7/x1.png]]
-
-** Against others  与其他方法对比
+** 对比其他方案
 #+ATTR_HTML: :style background-color: white;
 [[https://arxiv.org/html/1902.08318v7/x3.png]]
-
-** On demand json  按需 JSON
+** 按需 json
 #+ATTR_HTML: :style background-color: white;
 [[https://arxiv.org/html/2312.17149v3/x1.png]]
-
-* Ideas on how to do it fast?  如何快速实现？
+** 用法
+- 读取
+  - simdjson
+  - simdjson: On Demand (stream)
+  - fastjson2
+- 写入
+  - rapidjson
+  - fastjson2
+* 关于如何快速执行的想法?
 #+begin_notes
-Suppose we think we have already written the fastest possible cpu parser in the world, what other ways can we speed it up?
+Look at how other people tried to speed it up
+so what other ways can we speed it up?
+json
 #+end_notes
-** strategies  策略
-- depends on the usage pattern   取决于使用模式
-*** Query intensive  查询密集型
-- Create a database (ElasticSearch, MongoDB, PostgresSQL)   创建数据库（ElasticSearch、MongoDB、PostgresSQL）
-  - create a KV store     创建键值存储
-  - load once and query it     一次加载，多次查询
-*** Selective parsing  选择性解析
+** 策略
+- 取决于使用模式
+*** 查询密集型
+- 创建一个数据库 (ElasticSearch, MongoDB, PostgresSQL)
+  - 创建一个 KV 存储
+  - 加载一次并查询它
+*** 选择性解析
 #+begin_notes
 The other opposite end is no parsing,
 Skip the parsing as parsing takes time, NoDB, do a grep search and jump around detecting some structures and patterns in the data
 There was a research paper talking about using JIT and speeding up the json query like a compiler
 Mison is another implementation that uses simd to find important character locations like braces [] " : and the authors of simdjson learnt lots from them.
 #+end_notes
-- Selective parsing   选择性解析
-  - NoDB     无数据库
-    - query the data without parsing it, without loading into a DB       在不解析、不加载到数据库的情况下查询数据
-    - like grep       类似于 grep
-  - JIT techniques       JIT 技术
-    - find patterns and repetitive structures, compile the code for the specific query       查找模式和重复结构，为特定查询编译代码
-    - like a compiler       类似于编译器
-  - *Mison* (by Microsoft)       *Mison*（由微软开发）
-    - selective parsing, jump directly to the field you want       选择性解析，直接跳转到所需字段
-    - use SIMD to find structural important characters like "       使用 SIMD 查找结构上重要的字符，例如引号
-
-** What is fair game?  什么是公平的规则？
+- 选择性解析
+  - NoDB
+    - 无需解析即可查询数据,无需加载到数据库中
+    - 像 grep 一样
+  - JIT 技术
+    - 查找模式和重复结构,编译用于特定查询的代码
+    - 像编译器一样
+  - _Mison_ (由 Microsoft 开发)
+    - 选择性解析,直接跳转到你想要的字段
+    - 使用 SIMD 查找结构性重要字符,例如 "
+** 什么是公平竞争?
 #+begin_notes
 So there are many json implementations out there and to measure performance, we need to properly define what json means.
-
 Most faster json parser implementations play cheat by just assuming the input is already valid.
-
 assuming strings are only ascii when json RFC said UTF-8, dont validate numbers, selectively parsing.
-
-simdjson is a complete parser following Json RFC standards, fully validating the input yet being faster than all of them. assuming input is correct is dangerous because it just is wrong input and wrong output
+simdjson is a complete parser following JSON RFC standards, fully validating the input yet being faster than all of them. assuming input is correct is dangerous because it just is wrong input and wrong output
 #+end_notes
-- Types of json parsing   JSON 解析的类型
-  - Non-validating json parser     非验证型 JSON 解析器
-    - assume the input is valid       假设输入是有效的
-    - easier       更简单
-    - most selective parsing is non-validating       大多数选择性解析都不验证
-  - Validating json parser       验证型 JSON 解析器
-    - check the input is valid       检查输入是否有效
-    - no assumptions or malformed input       无任何假设，接受格式正确的输入
-      - security risk         安全风险
-      - its just wrong number or string being parsed         解析出来的数字或字符串可能错误
-    - harder more complex         更难、更复杂
-
-** Proper definition of JSON  JSON 的正确定义
+- JSON 解析类型
+  - 非验证 JSON 解析器
+    - 假设输入是有效的
+    - 更容易
+    - 大多数选择性解析是非验证的
+  - 验证 JSON 解析器
+    - 检查输入是否有效
+    - 没有假设或格式错误的输入
+      - 安全风险
+      - 它只是被解析的错误数字或字符串
+    - 更难,更复杂
+** JSON 的正确定义
 #+begin_notes
 This is the real EBNF grammar for json, its kinda complex so i wrote a simplified version below
 #+end_notes
-
 #+begin_src ebnf
 /* JSON EBNF Grammar Specification */
-
 /* Root JSON structure */
 json = ws , (object | array) , ws ;
-
 /* Objects */
 object = "{" , ws , [ members ] , ws , "}" ;
 members = pair , { "," , ws , pair } ;
 pair = string , ws , ":" , ws , value ;
-
 /* Arrays */
 array = "[" , ws , [ elements ] , ws , "]" ;
 elements = value , { "," , ws , value } ;
-
 /* Values */
 value = string | number | object | array | "true" | "false" | "null" ;
-
 /* Strings */
 string = '"' , { char | escape } , '"' ;
 char = ? any Unicode character except " or \ or control characters ? ;
 escape = "\" , ('"' | "\" | "/" | "b" | "f" | "n" | "r" | "t" | unicode) ;
 unicode = "u" , hexdigit , hexdigit , hexdigit , hexdigit ;
 hexdigit = digit | "A" | "B" | "C" | "D" | "E" | "F" | "a" | "b" | "c" | "d" | "e" | "f" ;
-
 /* Numbers */
 number = [ "-" ] , (zero | integer) , [ fraction ] , [ exponent ] ;
 integer = nonzero , { digit } ;
@@ -146,66 +153,42 @@ digit = "0" | nonzero ;
 zero = "0" ;
 fraction = "." , digit , { digit } ;
 exponent = ("E" | "e") , [ "+" | "-" ] , digit , { digit } ;
-
 /* Whitespace */
 ws = { whitespace } ;
 whitespace = " " | "\t" | "\n" | "\r" ;
-
 /* Comments and Explanation */
 #+end_src
-
-** My reduced definition of JSON  我简化的 JSON 定义
+** 强烈定义:bool、字符串、数字、null、对象和数组
 #+begin_notes
-A json value is just made up of 2 value types
-primitive value and container value
-
-primitive is just like all the java primitives that we know of, boolean string number null
-
-container types only has 2 types array and objects
-
-arrays can contain any json value
-objects contain {string: json_value}
+very simple, we just need to strongly define these 6 basic types
+bool, string, number, null, object and array
+write parsing rules to validate and check that they are valid
+then understand what the data means
+This sounds simple, but it is deceptively simple
 #+end_notes
-
-#+begin_src ebnf
-json_value ::= primitive_value | container_value
-
-primitive_value ::= boolean | string | number | null
-
-boolean ::= "true" | "false"
-
-string ::= " utf8_char* "
-utf8_char ::= ascii_char | unicode_char
-
-number ::= integer | decimal | scientific
-integer ::= ["+" | "-"] digit+
-decimal ::= integer "." digit+
-scientific ::= decimal "e" ["+"|"-"] digit+
-digit ::= 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
-
-null ::= "null"
-
-container_value ::= object | array
-
-object ::= "{" string:json_value, string:json_value "}"
-
-array ::= "[" json_value, json_value "]"
-
-(* Notes:
-   - Integer limits: [-2^53+1 to 2^53-1] for safe integers
-   - Scientific notation limit: approximately ±2^1024
-   - NaN and Infinity are not valid JSON numbers
-   - Strings must be UTF-8 encoded
-,*)
+#+begin_src haskell
+data JsonValue
+    = Primitive PrimitiveValue
+    | Container ContainerValue
+-- 6 primitives --------------------------
+data PrimitiveValue
+    = Boolean Bool  -- true | false
+    | String Text   -- "string"
+    | Number Double -- 123, 1.23, 123e0, 123E0
+    | Null          -- null
+data ContainerValue
+    = Object Object -- { "string", PrimitiveValue, ... }
+    | Array Array   -- [ PrimitiveValue, ... ]
+-- END -----------------------------------
+newtype Object = Object [(Text, JsonValue)]
+newtype Array = Array [JsonValue]
 #+end_src
-
-** Strongly define: bool, string, number, null, object and array  强类型定义：bool, string, number, null, object 和 array
+** 强烈定义:bool、字符串、数字、null、对象和数组
 #+begin_notes
 boolean, true, false and null are trivial
-
 So first we start with the simplest sounding one of all, number, just integers right?, decimal perhaps? easy!
 #+end_notes
-*** Number limits and Integers  数值范围与整数
+*** 数字限制和整数
 #+begin_notes
 Lets take a look at limits.
 Theres no strict definition for the limit of numbers, most use (2^53 - 1) because of the floating point representation
@@ -219,27 +202,23 @@ const INTEGER_EXAMPLES = {
     max_safe_integer: 9007199254740991,
     // Minimum safe integer in JavaScript (-(2^53 - 1))
     min_safe_integer: -9007199254740991,
-
     // Zero representations
     zero: 0,
     negative_zero: -0,  // JSON preserves negative zero
-
     // Common boundary values
     max_32bit_int: 2147483647,
     min_32bit_int: -2147483648,
-
     // Integer examples
     positive: 42,
     negative: -42
 };
 #+end_src
-*** Floats and Scientific notation  浮点数和科学计数法
+*** 浮点数和科学计数法
 #+begin_notes
 Floats, you see the e-308.
 below you can see that both E and e are valid
 some + and some - exponents
 some without the + and - signs
-
 what about the special case of 0.0e0!? how do we handle that?
 these are all the details your validator needs to check for before declaring that this is a valid input
 #+end_notes
@@ -248,25 +227,20 @@ these are all the details your validator needs to check for before declaring tha
 const FLOAT_EXAMPLES = {
     // Precision examples (up to 15-17 significant digits)
     high_precision: 1.234567890123456,
-
     // Edge cases
     very_small_positive: 2.2250738585072014e-308, // Near smallest possible double
     very_large_positive: 1.7976931348623157e+308  // Near largest possible double
 };
-
 // 3. Scientific Notation Examples
 const SCIENTIFIC_NOTATION = {
     // Positive exponents
     large_scientific: 1.23e+11,
     very_large: 1.23E+308,  // Note: Both 'e' and 'E' are valid
-
     // Negative exponents
     small_scientific: 1.23e-11,
     very_small: 1.23E-308,
-
     // Zero with exponent
     zero_scientific: 0.0e0,
-
     // Various representations
     alternative_forms: {
         standard: 1230000000,
@@ -274,100 +248,87 @@ const SCIENTIFIC_NOTATION = {
         another_form: 123e7
     }
 };
-
-
 #+end_src
-** String: handle escaped quotes and UTF-8  字符串：处理转义引号和 UTF-8
+** 字符串:处理转义引号和 UTF-8
 #+begin_notes
 next we have string, many implementations just assume ascii
-
-json RFC says it must be UTF-8
-
+- simple 128 possibilities
+- mostly correct data usually just ascii
+but json RFC says it must be UTF-8
 the last important thing to take note of is escaped \", we need to detect them properly to get the correct json, everything is done in simd.
 #+end_notes
-- some lazy parsers assume ascii for simplicity   一些懒惰的解析器为了简单假设仅为 ASCII
-  - 128 possibilities, 8 bits only     只有 128 种可能，8 位
-  - assume that input does not have japanese or chinese or weird characters     假设输入中不包含日文、中文或奇怪字符
-- RFC standard says strings are UTF-8     RFC 标准规定字符串必须为 UTF-8
-- escaped double quotes "Tom said: \"hello\"."     转义双引号 "Tom said: \"hello\"."
-  - Tom said: "hello".       Tom 说：“hello”。
-  - number of '\'       反斜杠的数量
-    - odd -> escaped, "\"" -> "       奇数个 -> 被转义，"\"" 代表 "
-    - even -> not escaped, "\\" -> "\""       偶数个 -> 未转义，"\\" 代表 "\"
-- outside of ",there can only be 4 types of white space     在引号之外，只允许 4 种空白字符
-  - " " | "\t" | "\r" | "\n"       " " | "\t" | "\r" | "\n"
-
-*** ASCII code  ASCII 编码
+- 一些惰性解析器为了简单起见,假定为 ascii
+  - 128 种可能性,只有 8 位
+  - 假设输入没有日语、中文或奇怪的字符
+- RFC 标准说字符串是 UTF-8
+- 转义双引号 "Tom said: \"hello\"."
+  - Tom said: "hello".
+  - '\' 的数量
+    - 奇数 -> 转义, "\"" -> "
+    - 偶数 -> 未转义, "\\" -> \
+- 在 " 之外,只能有 4 种空格符
+  - " " | "\t" | "\r" | "\n"
+*** ASCII 码
 #+begin_notes
 This is just simply the ascii code table, quite sure we are all very familiar with it 0x30 - 0x39 is digits 0-9 lets move on
 #+end_notes
-- code ponits 0x00 - 0xEF 127 possibilities     代码点 0x00 - 0xEF，共 127 种可能
+- 代码点 0x00 - 0xEF 127 种可能性
 #+ATTR_HTML: :style background-color: white;
 [[https://upload.wikimedia.org/wikipedia/commons/thumb/4/4c/USASCII_code_chart.svg/1280px-USASCII_code_chart.svg.png]]
-
-*** UTF-8  UTF-8
+*** UTF-8
 #+begin_notes
 if it starts with the first bit being 0, it is ASCII
 else if it is 1, it must conform to UTF-8 standards
+this is why utf-8 validation is not straight forward
+but the authors fugired out a way to do it with simd
+it was able to detect this pattern in simd
 #+end_notes
 #+begin_src text
 Single byte (ASCII):
 0xxxxxxx                     (values 0-127)
 Values start with 0, remaining 7 bits for data
-
 Two bytes:
 110xxxxx 10xxxxxx           (values 128-2047)
 First byte starts with 110
-
 Three bytes:
 1110xxxx 10xxxxxx 10xxxxxx  (values 2048-65535)
 First byte starts with 1110
-
 Four bytes:
 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx   (values 65536+)
 First byte starts with 11110
 #+end_src
-- normally outside of strings, no bytes start with 1 in front.     通常在字符串外，没有字节以 1 开头。
-
-** Summary of requirements  需求总结
-- numbers     数字
-  - negative       负数
-  - floats       浮点数
-- string       字符串
-  - utf-8       UTF-8
-  - escaped quotes \"       转义引号 \"
-- Rest of structure well formed     其它结构必须格式正确
-  - valid whitespace       有效空白字符
-  - valid bracket {}, []       有效的括号 {}, []
-
-* challenges 挑战
-** writing a parser for it  为它编写解析器
+** 需求总结
+- 数字
+  - 负数 + -
+  - 浮点数 1.23
+- 字符串
+  - utf-8
+  - 转义引号 \" | \\"
+- 结构良好
+  - 有效的空格
+  - 有效的括号 {}, []
+* 挑战
+** 为其编写解析器
 #+begin_notes
 Im not sure how many of us here has written a recursive descent parser but normally
 how one would write a parser is that
 one would just scan the string from left to right until it can determine what to do with the input
 this requires many if else checks to see when to stop, when to look back, when to decide that what I am seeing is an object, string, array ...
-
 the problem is that if statements cause a miss predicted branch, this is very costly to computers
 if the branching is very predictable, like taking true all the time, there is no cost, usually the cpu will just
 assume the previous branch was taken and follow that, then the cost is 1 cycle
-
 if we need to stop and recorrect the branch it will take at least 15 cycles.
-
 Can you do it without branches? thats what the SIMDjson team was working on.
 #+end_notes
-- Recursive Descent type parser     递归下降解析器
-- Many if else required, is it possible to do it without any branches?     需要许多 if-else，是否可以实现无分支？
-
+- 递归下降类型解析器
+- 需要许多 if else,是否可以在没有任何分支的情况下完成?
 #+begin_src python
 def peek_token_type(json_str, index):
     char = json_str[index]
-
     # Skip whitespace
     while index < len(json_str) and is_whitespace(char):
         index += 1
         char = json_str[index]
-
     # Check data type based on first character
     if char == '{':
         return 'object'
@@ -377,45 +338,53 @@ def peek_token_type(json_str, index):
         return 'string'
     elif is_digit(char):
         return 'number'
-    elif char == 't' or char == 'f':
+    elif char 't' or char 'f':
         return 'boolean'
     elif char == 'n':
         return 'null'
     else:
         raise ValueError(f"Invalid JSON character at position {index}: {char}")
 #+end_src
-
-** Given the challenge, how to do it fast?  在这种挑战下，如何快速实现？
+** 鉴于挑战,如何快速完成?
 #+begin_notes
 mison already implemented some of these but not everything
 #+end_notes
-- Parallelization, split work across multiple cores.     并行化，将工作分配到多个核心
-- SIMD, process more than 8 bytes at a time.     SIMD，一次处理超过 8 个字节
-  - Branchless code, no if statements. CPU missed branch prediction.       无分支代码，无 if 语句。CPU 分支预测失误时会有额外开销。
-    - correct, 0-1 cycles       正常情况，0-1 个周期
-    - branch miss, 20 cycles       分支失误时，约 20 个周期
-
-* About SIMD  关于 SIMD
-how does simd fit into all of this?  SIMD 在这一切中扮演什么角色？
-** What is simd  什么是 SIMD
+- SIMD,一次处理超过 8 个字节。
+  - 无分支代码,没有 if 语句。CPU 错误预测分支。
+    - 正确,0-1 个周期
+    - 分支错误,20 个周期
+* 关于 SIMD
+simd 如何融入所有这些?
+** 什么是 simd
+#+begin_notes
+usually when we program, we work with one variable 64 bytes
+this is the sisd model
+one data one instruction
+just imagine that instead of working with one number
+we work with 8 in parallel instead 256, 512 bytes
+this is the simd on the bottom left
+#+end_notes
 [[https://pep-root6.github.io/docs/analysis/simd.png]]
-** SIMD example  SIMD 示例
+** SIMD 示例
+#+begin_notes
+here is an example
+its just adding 2 arrays together with one instruction
+normally we need a for loop to do this
+but using simd we can do it in one step
+#+end_notes
 #+BEGIN_EXAMPLE
-Adding 4 numbers simultaneously:
-
-Scalar:
-A: [5] + [3] = [8]     Step 1
-B: [7] + [2] = [9]     Step 2
-C: [4] + [6] = [10]    Step 3
-D: [1] + [8] = [9]     Step 4
-
+同时添加 4 个数字:
+标量:
+A: [5] + [3] = [8]     步骤 1
+B: [7] + [2] = [9]     步骤 2
+C: [4] + [6] = [10]    步骤 3
+D: [1] + [8] = [9]     步骤 4
 SIMD:
 [5|7|4|1] +
-[3|2|6|8] =   Step 1
-[8|9|10|9]    Done!
+[3|2|6|8] =   步骤 1
+[8|9|10|9]    完成!
 #+END_EXAMPLE
-
-** CPU  CPU
+** CPU
 #+begin_src text
 Year:         2010          2013          2019
 Architecture: Westmere  ->  Haswell   ->  Ice Lake
@@ -424,17 +393,16 @@ Vector ISA:   SSE2      ->  AVX2      ->  AVX512
 Vec Width:    128-bit       256-bit       512-bit
              (16 bytes)    (32 bytes)    (64 bytes)
 #+end_src
-- Streaming SIMD Extensions     流式 SIMD 扩展
-  - XMM0-XMM15       XMM0-XMM15
-- Advanced Vector Extensions 2     高级向量扩展 2 (AVX2)
-  - YMM0-YMM15       YMM0-YMM15
-- Advanced Vector Extensions 512     高级向量扩展 512 (AVX-512)
-  - ZMM0-ZMM15       ZMM0-ZMM15
-
-** SIMD code is not that scary  SIMD 代码并没有那么可怕
-Westmere uses 128-bit SSE instructions     (_mm_shuffle_epi8)  Westmere 使用 128 位 SSE 指令 (_mm_shuffle_epi8)
-Haswell  uses 256-bit AVX2 instructions    (_mm256_shuffle_epi8)  Haswell 使用 256 位 AVX2 指令 (_mm256_shuffle_epi8)
-Ice Lake uses 512-bit AVX-512 instructions (_mm512_shuffle_epi8)  Ice Lake 使用 512 位 AVX-512 指令 (_mm512_shuffle_epi8)
+- 流式 SIMD 扩展
+  - XMM0-XMM15
+- 高级向量扩展 2
+  - YMM0-YMM15
+- 高级向量扩展 512
+  - ZMM0-ZMM15
+** SIMD 代码并没有那么可怕
+Westmere 使用 128 位 SSE 指令     (_mm_shuffle_epi8)
+Haswell  使用 256 位 AVX2 指令    (_mm256_shuffle_epi8)
+Ice Lake 使用 512 位 AVX-512 指令 (_mm512_shuffle_epi8)
 #+begin_src cpp
 // Westmere
 const uint64_t whitespace = in.eq({
@@ -443,32 +411,67 @@ const uint64_t whitespace = in.eq({
     _mm_shuffle_epi8(whitespace_table, in.chunks[2]),
     _mm_shuffle_epi8(whitespace_table, in.chunks[3])
 });
-
 // Haswell (2 x 256-bit chunks)
 const uint64_t whitespace = in.eq({
     _mm256_shuffle_epi8(whitespace_table, in.chunks[0]),
     _mm256_shuffle_epi8(whitespace_table, in.chunks[1])
 });
-
 // Ice Lake (1 x 512-bit chunk)
 const uint64_t whitespace = in.eq({
     _mm512_shuffle_epi8(whitespace_table, in.chunks[0])
 });
 #+end_src
-
-** When SIMD Shines  SIMD 何时展现优势
-- Regular, predictable data patterns     规则且可预测的数据模式
-- Simple mathematical operations     简单的数学运算
-- Continuous blocks of memory     连续的内存块
-- Identical operations on multiple data points     对多个数据点执行相同操作
-- High throughput     高吞吐量
-#+BEGIN_EXAMPLE
+** 一些 simd 示例
+#+begin_notes
+add
+have different types like 8,16,32,64
+subtract
+multiply
+or and xor bitwise
+sll srl
+#+end_notes
+#+ATTR_HTML: :style font-size: 16px;
+| Intrinsic Function         | Instruction | Description                 |
+|----------------------------+-------------+-----------------------------|
+| _mm256_add_epi8(a, b)      | VPADDB      | Add packed 8-bit            |
+| _mm256_add_epi16(a, b)     | VPADDW      | Add packed 16-bit           |
+| _mm256_add_epi32(a, b)     | VPADDD      | Add packed 32-bit           |
+| _mm256_add_epi64(a, b)     | VPADDQ      | Add packed 64-bit           |
+| _mm256_sub_epi64(a, b)     | VPSUBQ      | Subtract packed 64-bit      |
+| _mm256_mullo_epi32(a, b)   | VPMULLD     | Multiply packed 32-bit      |
+| _mm256_mulhi_epi16(a, b)   | VPMULHW     | Multiply packed 16-bit      |
+| _mm256_and_si256(a, b)     | VPAND       | Bitwise AND of 256 bits     |
+| _mm256_or_si256(a, b)      | VPOR        | Bitwise OR of 256 bits      |
+| _mm256_xor_si256(a, b)     | VPXOR       | Bitwise XOR of 256 bits     |
+| _mm256_andnot_si256(a, b)  | VPANDN      | Bitwise AND NOT of 256 bits |
+| _mm256_slli_epi64(a, imm8) | VPSLLQ      | Shift packed 64-bit         |
+| _mm256_srli_epi64(a, imm8) | VPSRLQ      | Shift packed 64-bit         |
+** SIMD 的闪光点
+#+begin_notes
+- Regular, predictable data patterns
+- Simple mathematical operations
+- Continuous blocks of memory
+- Identical operations on multiple data points
+- High throughput
+#+end_notes
+- 规则的,可预测的数据模式
+- 简单的数学运算
+- 连续的内存块
+- 多个数据点上的相同操作
+- 高吞吐量
+#+begin_src text
 Perfect for SIMD:
 [1|2|3|4] × 2  = [2 |4 |6 |8 ] ✓
 [R|G|B|A] + 10 = [R'|G'|B'|A'] ✓
-#+END_EXAMPLE
-
-** SIMD's Achilles Heel: Branching  SIMD 的致命弱点：分支
+#+end_src
+** SIMD 的阿喀琉斯之踵:分支
+#+begin_notes
+is harder to do simd
+but if we can remove the if statements
+it is possible to do simd
+we do it with branchless, simd can be applied to it
+#+end_notes
+- 如果类似解析中的逻辑很复杂,则无法进行 simd
 #+begin_src c++
     if (char_at == '{') {
         return "object";
@@ -478,7 +481,7 @@ Perfect for SIMD:
         return "string";
     } else if (is_digit(char_at)) {
         return "number";
-    } else if (char_at == 't' || char_at == 'f') {
+    } else if (char_at 't' || char_at 'f') {
         return "boolean";
     } else if (char_at == 'n') {
         return "null";
@@ -490,14 +493,60 @@ Perfect for SIMD:
         );
     }
 #+end_src
-
-*** Arithmetic booleans  算术布尔运算
+*** 正确的分支预测
+#+begin_notes
+when there is a branch, branch prediction usually use the last 2 times rule
+and assumes that that branch will be taken
+this is the cpu instruction pipeline
+there are 5 steps in the cpu
+fetch, decode, execue, memory, write
+so they pipeline so that every time, all stages are busy
+if they guess the branch correctly, there is actually no cost
+#+end_notes
+#+begin_src text
+IF = Instruction Fetch
+ID = Instruction Decode
+EX = Execute
+MEM = Memory Access
+WB = Write Back
+Time →
+1  2  3  4  5  6  7  8  9
+IF ID EX ME WB          | Instruction 1 (branch)
+   IF ID EX ME WB       | Instruction 2 (correctly predicted)
+      IF ID EX ME WB    | Instruction 3
+         IF ID EX ME WB | Instruction 4
+#+end_src
+*** 分支预测错误
+#+begin_notes
+only at time 4 it realize that it is wrong and need to go to the other branch
+so it has to flush
+#+end_notes
+- 示例成本 3 个周期,但实际 cpu 成本 7-15 个周期
+#+begin_src text
+Time →      FLUSH
+1  2  3  4  5  6  7  8  9 10 11 12 13
+IF ID EX ME WB                | Instruction 1 (branch)
+   IF ID EX -- -- --          | Instruction 2 (wrong path)
+      IF ID EX -- -- --          | Instruction 3 (wrong path)
+         IF ID -- -- --          | Instruction 4 (wrong path)
+            IF ID EX ME WB    | Correct Instruction 2
+               IF ID EX ME WB | Correct Instruction 3
+#+end_src
+*** 算术布尔值
+#+begin_notes
+LLVM optimization is very complex
+there are many rules for -o2 -o3
+different versions
+gcc vs clang llvm
+these are just examples
+#+end_notes
+- 实际上,当您执行 -o2 和 -o3 时,LLVM 会为您执行此操作
+#+ATTR_HTML: :style font-size: 16px;
 #+begin_src c++
     // Example 1: Arithmetic with booleans
     bool condition = true;
     int a = 10;
     int b = 20;
-
     // Branched version
     int x;
     if (condition) {
@@ -506,15 +555,13 @@ Perfect for SIMD:
         x = b;
     }
     std::cout << x << std::endl;  // Output: 10
-
     // Branchless version 1
-    x = condition * a + (!condition) * b;
+    x = condition _a + (!condition)_ b;
     // Step by step:
-    // true * 10 + (!true) * 20
-    // 1 * 10 + 0 * 20
+    // true _10 + (!true)_ 20
+    // 1 _10 + 0_ 20
     // 10 + 0 = 10
     std::cout << x << std::endl;  // Output: 10
-
     // Branchless version 2
     x = b + (a - b) * condition;
     // Step by step:
@@ -523,14 +570,13 @@ Perfect for SIMD:
     // 20 - 10 = 10
     std::cout << x << std::endl;  // Output: 10
 #+end_src
-
-*** Selection indexing  选择索引
+*** 选择索引
+- 实际上,当您执行 -o2 和 -o3 时,LLVM 会为您执行此操作
 #+begin_src c++
     // Example 2: Tuple indexing
     bool condition = true;
     int a = 10;
     int b = 20;
-
     // Branched version
     int x;
     if (condition) {
@@ -539,7 +585,6 @@ Perfect for SIMD:
         x = b;
     }
     std::cout << x << std::endl;  // Output: 10
-
     // Branchless version
     std::array<int, 2> values = {b, a};  // Note: array order is {b, a} to match Python's (b, a)
     x = values[condition];
@@ -548,27 +593,26 @@ Perfect for SIMD:
     // {20, 10}[1]     // true converts to 1
     // 10
     std::cout << x << std::endl;  // Output: 10
-
     return 0;
 #+end_src
-
-*** If LLVM does it for you, whats the point?  如果 LLVM 能为你做，意义何在？
+*** 如果 LLVM 为您执行此操作,那有什么意义?
 #+begin_notes
 LLVM only good at small cases.
 For larger complex patterns like JSON.
+you must give it as much information as possible to do it.
+if you have an array and if it doesn't know that this is 512 bytes, it cannot do simd optimizations
 The authors noticed several patterns in the data.
 Exploited them and made all operations into SIMD.
 Also by batching operations together like maybe do 1 type of operation over the entire string
 We can basically almost use SIMD for the entire parsing instead of small minor optimizations.
 #+end_notes
-- LLVM does it's best, but it cannot find everything     LLVM 已经做到最好，但并不能发现所有问题
-  - good at small cases       擅长小案例
-- some larger complex patterns     某些更大、更复杂的模式
-  - human pattern recognition       人工模式识别
-  - batching operations you can use simd       批量操作中可利用 SIMD
-
-** Write branchless code (bitwise operations)  编写无分支代码（位运算）
-*** Tricky memory layout  棘手的内存布局
+- LLVM 尽力而为,但它找不到所有内容
+  - 擅长小案例
+- 一些较大的复杂模式
+  - 人工模式识别
+  - 批处理操作可以使用 simd
+** 编写无分支代码(按位运算)
+*** 棘手的内存布局
 #+begin_src text
 number = 305,419,896
 number << 1 # shift left logical
@@ -590,24 +634,20 @@ Hexadecimal: 0x2468ACF0
 #+begin_notes
 need to know some low level operations to explain all the SIMD things later
 #+end_notes
-*** Masking  掩码操作
+*** 掩码
 #+begin_src
 a = 00001111
 b = 11111100
-
 and_op = a & b
 and_op = 00001100
-
- or_op = a | b
- or_op = 11111111
-
+or_op = a | b
+or_op = 11111111
 xor_or = a ^ b
 xor_or = 11110011
 #+end_src
-*** Unset right most bit(blsr)  清除最右边的位 (blsr)
+*** 取消设置最右边的位(blsr)
 #+begin_src
 s = s & (s-1)
-
 a =     00101100
 b =     (a - 1)
 a =     00101100
@@ -615,23 +655,20 @@ b =     00101011
 a & b = 00101000
 // rightmost bit is unset
 #+end_src
-- common cpu operation, compiler optimize to ~blsr~     常见 CPU 操作，编译器会优化为 ~blsr~
-** LLVM Compiler  LLVM 编译器
+- 通用 cpu 操作,编译器优化为 ~blsr~
+** LLVM 编译器
 #+begin_notes
 One of the things to do to write fast code is know how the LLVM compiler optimizes your code
 There are many many optimizations available for us to use, so I will not go through them,
 I'll just talk abit about how optimizations even work in the first place.
 #+end_notes
 [[https://llvm.org/img/LLVMWyvernSmall.png]]
-*** LLVM  LLVM
+*** LLVM
 #+begin_notes
 LLVM is split up into 3 parts,
 Frontend, middle-end and backend
-
 the front end will read our c++ source code and output something called a Intermediate Representation
-
 Then the IR will be optimized then the backend will target different cpu platforms like X86, ARM and PowerPC
-
 Thats all LLVM is, its not that difficult
 #+end_notes
 #+begin_src text
@@ -641,7 +678,7 @@ Source Code → LLVM IR → [Optimized IR] → [Assembly] → Machine Code
                                      ↘________________↗
                                      (direct path option)
 #+end_src
-*** Without LLVM IR  没有 LLVM IR 的情况
+*** 没有 LLVM IR
 #+begin_notes
 Why do we need to have this IR
 Every new language we add we need to write compilers to target all the outputs
@@ -652,18 +689,15 @@ Without LLVM IR (n*m: 3 languages × 3 targets = 9 compilers)
 C++   ----→  x86_64
       \---→  AMD
        \--→  ARM
-
 Rust  ----→  x86_64
       \---→  AMD
        \--→  ARM
-
 Haskell --→  x86_64
         \-→  AMD
          \→  ARM
-
 Each arrow represents a separate compiler frontend+backend (9 total)
 #+end_src
-*** With LLVM IR  使用 LLVM IR
+*** 使用 LLVM IR
 #+begin_notes
 We just write one compiler to target the IR then it can just generate the output for each architecture
 Any optimizations and improvements to the compiler on the right side, we get it for free on the left side.
@@ -671,7 +705,6 @@ Any optimizations and improvements to the compiler on the right side, we get it 
 #+begin_src text
 With LLVM IR (n+m: 3 frontends + 3 backends = 6 components)
 --------------------------------------------------------
-
             ╭→ x86_64
 C++    ╮    │
        ↓    │
@@ -679,7 +712,6 @@ Rust   ━━→ IR ━━→ AMD
        ↑    │
 Haskell╯    │
             ╰→ ARM
-
             ┊
             ↓
     Shared Optimizations
@@ -688,7 +720,7 @@ Haskell╯    │
     - Constant propagation
     - And many more...
 #+end_src
-*** Intermediate Representation Example(IR)  中间表示 (IR) 示例
+*** 中间表示示例(IR)
 #+begin_notes
 Lets talk about an example code here very simple for loop
 sum += i*4
@@ -703,7 +735,7 @@ int example2(int n) {
     return sum;
 }
 #+end_src
-*** Unoptimized IR -O0  未优化的 IR -O0
+*** 未优化 IR -O0
 #+begin_notes
 If we compile with -O0, optimization level 0, no optimization
 This is the IR
@@ -721,13 +753,11 @@ entry:
   store i32 0, ptr %sum, align 4
   store i32 0, ptr %i, align 4
   br label %for.cond
-
 for.cond:
   %1 = load i32, ptr %i, align 4
   %2 = load i32, ptr %n, align 4
   %cmp = icmp slt i32 %1, %2
   br i1 %cmp, label %for.body, label %for.end
-
 for.body:
   %3 = load i32, ptr %i, align 4
   %mul = mul nsw i32 %3, 4
@@ -735,27 +765,26 @@ for.body:
   %add = add nsw i32 %4, %mul
   store i32 %add, ptr %sum, align 4
   br label %for.inc
-
 for.inc:
   %5 = load i32, ptr %i, align 4
   %inc = add nsw i32 %5, 1
   store i32 %inc, ptr %i, align 4
   br label %for.cond
-
 for.end:
   %6 = load i32, ptr %sum, align 4
   ret i32 %6
 }
 #+end_src
-*** Unoptimized IR -O0 Graph  未优化 IR -O0 图
+*** 未优化 IR -O0 图
+#+begin_notes
+this is the computation graph of the IR in front
+#+end_notes
 #+begin_src mermaid :file attachments/unoptimized-ir.png
 flowchart TD
     classDef memop fill:#f9f,stroke:#333
     classDef arithop fill:#afd,stroke:#333
     classDef control fill:#fda,stroke:#333
-
     param["%0 param"]
-
     subgraph entry
         alloc_n["%n = alloca"]:::memop
         alloc_sum["%sum = alloca"]:::memop
@@ -764,14 +793,12 @@ flowchart TD
         store_sum0["store 0 to %sum"]:::memop
         store_i0["store 0 to %i"]:::memop
     end
-
     subgraph for_cond
         load_i1["load from %i"]:::memop
         load_n["load from %n"]:::memop
         cmp["icmp slt"]:::arithop
         branch_cond["br i1"]:::control
     end
-
     subgraph for_body
         load_i2["load from %i"]:::memop
         mul["mul * 4"]:::arithop
@@ -779,23 +806,19 @@ flowchart TD
         add["add"]:::arithop
         store_sum["store to %sum"]:::memop
     end
-
     subgraph for_inc
         load_i3["load from %i"]:::memop
         inc["add + 1"]:::arithop
         store_i["store to %i"]:::memop
     end
-
     subgraph for_end
         load_sum_final["load from %sum"]:::memop
         ret["return"]:::control
     end
-
     param --> store_n
     alloc_n --> store_n
     alloc_sum --> store_sum0
     alloc_i --> store_i0
-
     store_i0 --> load_i1
     store_n --> load_n
     load_i1 --> cmp
@@ -803,22 +826,19 @@ flowchart TD
     cmp --> branch_cond
     branch_cond -->|"i < n"| load_i2
     branch_cond -->|"i >= n"| load_sum_final
-
     load_i2 --> mul
     mul --> add
     load_sum --> add
     add --> store_sum
     store_sum --> load_i3
-
     load_i3 --> inc
     inc --> store_i
     store_i --> load_i1
-
     load_sum_final --> ret
 #+end_src
 #+RESULTS:
 [[file:attachments/unoptimized-ir.png]]
-*** Optimized IR -O2  优化后的 IR -O2
+*** 优化 IR -O2
 #+begin_notes
 this is compiled with -O2
 #+end_notes
@@ -827,20 +847,18 @@ define dso_local i32 @_Z8example2i(i32 %0) local_unnamed_addr #0 {
 entry:
   %cmp6 = icmp sgt i32 %0, 0
   br i1 %cmp6, label %for.body.preheader, label %for.end
-
 for.body.preheader:
   %1 = add i32 %0, -1
   %2 = mul i32 %0, %1
   %3 = lshr i32 %2, 1
   %4 = mul i32 %3, 4
   br label %for.end
-
 for.end:
   %sum.0.lcssa = phi i32 [ 0, %entry ], [ %4, %for.body.preheader ]
   ret i32 %sum.0.lcssa
 }
 #+end_src
-*** Optimized IR -O2 Graph  优化后的 IR -O2 图
+*** 优化 IR -O2 图
 #+begin_notes
 with deadcode eliminated
 #+end_notes
@@ -848,66 +866,84 @@ with deadcode eliminated
 flowchart TD
     classDef arithop fill:#afd,stroke:#333
     classDef control fill:#fda,stroke:#333
-
     param["%0 param"]
-
     subgraph entry
         cmp["icmp sgt i32 %0, 0"]:::arithop
         branch["br i1"]:::control
     end
-
     subgraph for_body_preheader
         sub["add i32 %0, -1"]:::arithop
         mul1["mul i32 %0, %1"]:::arithop
         shift["lshr i32 %2, 1"]:::arithop
         mul2["mul i32 %3, 4"]:::arithop
     end
-
     subgraph for_end
         phi["phi i32 [0, entry], [%4, preheader]"]:::control
         ret["ret i32"]:::control
     end
-
     param --> cmp
     cmp --> branch
     branch -->|"> 0"| sub
     branch -->|"<= 0"| phi
-
     sub --> mul1
     param --> mul1
     mul1 --> shift
     shift --> mul2
     mul2 --> phi
-
     phi --> ret
-
     style param fill:#ddd
     style ret fill:#f96
 #+end_src
 #+RESULTS:
 [[file:attachments/optimized-ir.png]]
-
-* Simdjson Implementation  Simdjson 实现
-** simdjson Architecture Overview  simdjson 架构概述
-1. Stage 1: Structural Index Creation (find location of important markers)    阶段 1：结构索引创建（查找重要标记的位置）
-   1. Find structural characters ({,},[,],",,:)       查找结构字符（{, }, [, ], ", :, ,）
-   2. Identify string boundaries       确定字符串边界
-   3. Locate whitespace       定位空白字符
-   4. Validate UTF-8 encoding       验证 UTF-8 编码
-   5. Detect pseudo-structural characters       检测伪结构字符
-2. Stage 2: Parsing & Tape Building    阶段 2：解析与 Tape 构建
-   1. Parse atomic values (strings, numbers, true/false/null)       解析原子值（字符串、数字、true/false/null）
-   2. Validate document structure       验证文档结构
-   3. Build navigable tape representation       构建可导航的 Tape 表示
-   4. Convert numbers to machine formats       将数字转换为机器格式
-   5. Normalize strings to UTF-8       将字符串规范化为 UTF-8
-
-** simdjson diagram  simdjson 图示
+* Simdjson 实现
+** Simdjson 架构概述
+#+begin_notes
+indexing structure, basically to find the places where the data is at
+object, array, strings
+validate UTF-8
+1. Stage 1: Structural Index Creation (find location of important markers)
+   1. Find structural characters ({,},[,],",,:)
+   2. Locate whitespace
+   3. Identify string boundaries
+   4. Validate UTF-8 encoding
+generating output tape to navigate
+parsing
+1. Stage 2: Parsing & Tape Building
+   1. Validate document structure
+   2. Build navigable tape representation
+      1. Parse atomic values (strings, numbers, true/false/null)
+      2. Convert numbers to machine formats
+      3. Normalize strings to UTF-8
+#+end_notes
+1. 阶段 1:结构索引创建(查找重要标记的位置)
+   1. 查找结构字符 ({,},[,],",,:)
+   2. 定位空格
+   3. 识别字符串边界
+   4. 验证 UTF-8 编码
+2. 阶段 2:解析和磁带构建
+   1. 验证文档结构
+   2. 构建可导航磁带表示
+      1. 解析原子值(字符串,数字,true/false/null)
+      2. 将数字转换为计算机格式
+      3. 将字符串规范化为 UTF-8
+** simdjson 图
+#+begin_notes
+the actual way it is processed is
+reading in the input string
+convert to bytes
+code interface is working on 512 byte chunks
+if there are smaller divisions, it will split it up interally inside and work on those
+find the important locations called structural locations as a bitmask
+bitmask convert to index
+parse the true false null
+output the final tape
+#+end_notes
 #+begin_src text
     JSON INPUT STRING
    "{"name": "value"}"
             ⬇
-     64-BYTE CHUNKS
+     512-BYTE CHUNKS -> 512x1,256x2,128x4
    ╔═════════════════╗
    ║"{"name": "val...║
    ╚═════════════════╝
@@ -923,54 +959,55 @@ flowchart TD
    (Parse & Build Tape)  build tape to navigate
             ⬇
        FINAL TAPE
-[root, {, "name", "value", }]
+[.........................]
 #+end_src
-
-** Stage 1: Structural and Pseudo Structural Index Construction  阶段 1：结构和伪结构索引构建
-*** Input and Output  输入与输出
-- Input: Raw JSON bytes       输入：原始 JSON 字节
-- Output:       输出：
-  - Bitmask of structural chars         结构字符的位掩码
-  - Array of integer indices marking structural elements         标记结构元素的整数索引数组
-
-*** Key Responsibilities  主要职责
-1. Character encoding validation (UTF-8)        字符编码验证（UTF-8）
-2. Locate structural characters ([, {, ], }, :, ,)        定位结构字符（[, {, ], }, :, ,）
-3. Identify string boundaries        确定字符串边界
-   1. Handles escaped characters and quoted regions       处理转义字符和引号区域
-4. Find pseudo-structural characters (atoms like numbers, true, false, null)        查找伪结构字符（如数字、true、false、null 等原子值）
-
-** Stage 2: Structured Navigation  阶段 2：结构化导航
-*** Input and Output  输入与输出
-- Input: Array of structural indices from Stage 1       输入：阶段 1 中生成的结构索引数组
-- Output: Parsed JSON structure on a "tape"(array)       输出：以“Tape”（数组）形式表示的解析后 JSON 结构
-- Purpose: Build navigable representation of JSON document       目的：构建可导航的 JSON 文档表示
-
-*** Key Responsibilities  主要职责
-1. Parse strings and convert to UTF-8        解析字符串并转换为 UTF-8
-2. Convert numbers to 64-bit integers or doubles        将数字转换为 64 位整数或双精度浮点数
-3. Validate structural rules (matching braces, proper sequences)        验证结构规则（括号匹配、正确的序列）
-4. Build navigable tape structure        构建可导航的 Tape 结构
-
-*** The Tape Format  Tape 格式
-- 64-bit words for each node        每个节点使用 64 位字
-- Special encoding for different types:        针对不同类型的特殊编码：
-  - Atoms (null, true, false): n/t/f × 2^56        原子值（null, true, false）：n/t/f × 2^56
-  - Numbers: Two 64-bit words        数字：两个 64 位字
-  - Arrays/Objects: Start/end markers with navigation pointers        数组/对象：起始/结束标记及导航指针
-  - Strings: Pointer to string buffer        字符串：指向字符串缓冲区的指针
-
-* Stage 1: Structural and Pseudo Structural Index Construction  阶段 1：结构和伪结构索引构建
+** 阶段 1:结构和伪结构索引构建
+*** 输入与输出
+- 输入:原始 JSON 字节
+- 输出:
+  - 结构字符的位掩码
+  - 标记结构元素的整数索引数组
+*** 主要职责
+1. 字符编码验证 (UTF-8)
+2. 定位结构字符 ([, {, ], }, :, ,)
+3. 识别字符串边界
+   1. 处理转义字符和引用区域
+4. 查找伪结构字符(如数字,true,false,null 等原子)
+** 阶段 2:结构化导航
+*** 输入与输出
+- 输入:来自阶段 1 的结构索引数组
+- 输出:在“磁带”(数组)上解析的 JSON 结构
+- 目的:构建 JSON 文档的可导航表示
+*** 主要职责
+1. 解析字符串并转换为 UTF-8
+2. 将数字转换为 64 位整数或双精度数
+3. 验证结构规则(匹配括号,正确序列)
+4. 构建可导航的磁带结构
+*** 磁带格式
+- 每个节点 64 位字
+- 不同类型的特殊编码:
+  - 原子(null,true,false): n/t/f × 2^56
+  - 数字:两个 64 位字
+  - 数组/对象:具有导航指针的开始/结束标记
+  - 字符串:指向字符串缓冲区的指针
+* 阶段 1:结构和伪结构索引构建
+#+begin_notes
+this is how the high level overview of this stage, the c++ code looks like
+the important thing is this _mm256_shuffle_epi8 == VPSHUFB
+it is basically a small nibble level lookup table with 16 slots
+i will talk more about this later
+#+end_notes
+_mm256_shuffle_epi8 == VPSHUFB
+#+ATTR_HTML: :style font-size: 16px;
 #+begin_src cpp
+  // _mm256_shuffle_epi8 == VPSHUFB
   const auto whitespace_table = simd8<uint8_t>::repeat_16(' ', 100, 100, 100, 17, 100, 113, 2, 100, '\t', '\n', 112, 100, '\r', 100, 100);
-
   const auto op_table = simd8<uint8_t>::repeat_16(
     0, 0, 0, 0,
     0, 0, 0, 0,
     0, 0, ':', '{', // : = 3A, [ = 5B, { = 7B
     ',', '}', 0, 0  // , = 2C, ] = 5D, } = 7D
   );
-
   const uint64_t whitespace = in.eq({
     _mm256_shuffle_epi8(whitespace_table, in.chunks[0]),
     _mm256_shuffle_epi8(whitespace_table, in.chunks[1])
@@ -984,25 +1021,41 @@ flowchart TD
     _mm256_shuffle_epi8(op_table, in.chunks[0]),
     _mm256_shuffle_epi8(op_table, in.chunks[1])
   });
-
   return { whitespace, op };
 #+end_src
-
-** Stage 1: 1 Vectorized Classification and Pseudo-Structural Characters  阶段 1：1 向量化分类与伪结构字符
-- Want to obtain location of structural characters  ({, }, [, ], :, ,)        需要获取结构字符的位置（{, }, [, ], :, ,)
-  - pseudo-structural - Any non‐whitespace character that immediately follows a structural character or whitespace        伪结构字符 —— 紧跟在结构字符或空白字符之后的任意非空白字符
-  - useful for parsing, we need this bit mask to build tape        对解析非常有用，我们需要此位掩码来构建 Tape
+** 阶段 1:1 向量化分类和伪结构字符
+#+begin_notes
+we basically looking for these locations these are important loctains so that we can parse in stage 2
+notice that the escaped " are not selected
+this part will talk about how the authors did it in simd
+the trick is to use a look up table
+#+end_notes
+- 想要获取结构字符的位置 ({, }, [, ], :, ,)
+  - 伪结构 - 紧跟在结构字符或空格之后的任何非空格字符
+  - 用于分析,我们需要此位掩码来构建磁带
 #+begin_src text
 { "\\\"Nam[{": [ 116,"\\\\" , 234, "true", false ], "t":"\\\"" }
-__1______________1___1________1____1_______1________1___1_______
+**1**____________1___1________1____1_______1________1___1_______
+______0_____________________________________________________0___ escaped quotes "
 #+end_src
-
-*** Vectorized Classification  向量化分类
+*** 向量化分类
 #+begin_notes
 We need to classify structural characters
 each different class gets its own type
+comma
+colon
+brackets, array group 4
+whitespace
 we need to do this classification fast we will use a look up table to do the classification, basically O(1)
+notice they have only 1 bit at differnt locations
+we then use movemask to split them up into bitmasks
+vpshufb is done for the low 4 nibble so we can find that this is a
+c a b d b d
+high 4 nibble 2 3 5 5 7 7
+then we do bitwise and
+if we know both bytes then we can shift it to the correct
 #+end_notes
+#+ATTR_HTML: :style font-size: 50%;
 | code points | character   | desired value |   bin |
 |-------------+-------------+---------------+-------|
 |        0x2c | `,` (comma) |             1 | 00001 |
@@ -1016,40 +1069,47 @@ we need to do this classification fast we will use a look up table to do the cla
 |        0x0d | CR          |             8 | 01000 |
 |        0x20 | SPACE       |            16 | 10000 |
 |      others | any other   |             0 | 00000 |
-- PMOVMSKB     使用 PMOVMSKB
-  - _mm256_movemask_epi8 to extract the bits into bitmap        使用 _mm256_movemask_epi8 将位提取成位图
-
-**** VPSHUFB: Vector Permute Shuffle Bytes  VPSHUFB：向量置换洗牌字节
+#+begin_src text
+HIGH_4 AND LOW_4 == 0000 0100 // it must be a bracket
+{ "\\\"Nam[{": [ 116,"\\\\" , 234, "true", false ], "t":"\\\"" }
+____________________1_______1____________1________1_____________ comma mask
+_____________1_________________________________________1________ colon mask
+1_________11___1_________________________________1_____________1 bracket mask
+#+end_src
+*** VPSHUFB:向量排列混排字节
 #+begin_notes
 If you have any experience with hashmaps, they are actually very slow
 they are not truely o(1) lookup
 the only true O(1) lookup structures are actually arrays, index + offset
 hashing function is a fake O(1)
+if the first bit is a 0, it will look at the lower 4 nibble
+like an index into an array
+lets take 0x01 for example, it will go into the table here, look for the item in the first index
+and put it in that location
+so we get '1'
+if the high bit is 1, then it will be null byte 0x00
+we can classify 64 chars in 3-4 instructions now
+that is just 4 cycles compared to a big if else
 #+end_notes
-- basically a one instruction lookup table using the 4 lowest bit(nibble)        基本上利用最低 4 位（半字节）实现单指令查找表
-  - 0000 XXXX       0000 XXXX
+- 基本上是一个使用四种最低有效位(半字节)的单指令查找表
+  - 0000 XXXX
 #+begin_src c++
 int main() {
     // Lookup table for hex digits "0123456789abcdef"
     __m256i lut = _mm256_setr_epi8(
-        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
         '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'
     );
-
     // Example 2: Alternating normal/zeroed values (0x00,0x80,0x01,0x81...)
     __m256i indices2 = _mm256_setr_epi8(
         0x00, 0x80, 0x01, 0x81, 0x02, 0x82, 0x03, 0x83, 0x04, 0x84, 0x05, 0x85, 0x06, 0x86, 0x07, 0x87,
         0x08, 0x88, 0x09, 0x89, 0x0A, 0x8A, 0x0B, 0x8B, 0x0C, 0x8C, 0x0D, 0x8D, 0x0E, 0x8E, 0x0F, 0x8F
     );
-
     printf("\nAlternating with zeroes (. represents zero):\n");
     print_bytes(_mm256_shuffle_epi8(lut, indices2));
     // Alternating with zeroes (. represents zero):
     // 0.1.2.3.4.5.6.7.8.9.a.b.c.d.e.f.
-
     return 0;
 }
-
 #pragma GCC target("avx2")
 #include <immintrin.h>
 #include <stdio.h>
@@ -1066,77 +1126,70 @@ void print_bytes(__m256i v) {
     printf("\n");
 }
 #+end_src
-
-**** Simple example  简单示例
+*** 简单示例
+#+begin_notes
+skip if no time
+vpshufb is done for the low 4 nibble and high 4 nibble
+if we know both bytes then we can shift it to the correct
+#+end_notes
 | code points | character   | desired value |   bin |
 |        0x3a | `:` (colon) |             2 | 00010 |
 |        0x0a | LF          |             8 | 01000 |
-- use vpshufb to match low nibble a        使用 vpshufb 匹配低半字节 a
-- could be both : and LF so it must match 0010 | 1000 = 1010        可能既是 : 又是 LF，所以必须匹配 0010 | 1000 = 1010
-- low nibble at position A = 10        低半字节在位置 A = 10
-  - high nibble 0x3 vs 0x0        高半字节 0x3 与 0x0
-    - 0x3 = 2         0x3 = 2
-    - 0x0 = 8         0x0 = 8
-
-**** Simple example  简单示例
-#+BEGIN_EXAMPLE
+- use vpshufb to match low nibble a
+- could be both : and LF so it must match 0010 | 1000 = 1010
+- low nibble at position A = 10
+  - high nibble 0x3 vs 0x0
+    - 0x3 = 2
+    - 0x0 = 8
+*** 简单示例
+#+begin_example
 "LF:"
-
 Low nibble table
 00 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15
 xx xx xx xx xx xx xx xx xx xx 10 xx xx xx xx xx
 1010
-
 high nibble table
 00 .. 02 03 04 05 06 07 08 09 10 11 12 13 14 15
 08 .. 02 xx xx xx xx xx xx xx xx xx xx xx xx xx
 0100,  0010
-#+END_EXAMPLE
-
-***** Simple example  简单示例
+#+end_example
+*** 简单示例
 |     |      |   LF |    : |
 |     | low  | 1010 | 1010 |
 |     | high | 1000 | 0010 |
 | AND |      | 1000 | 0010 |
 |     |      |    8 |    2 |
-
-*** Stage 1: Bitmap to Array index  阶段 1：位图转换为数组索引
-**** input data  输入数据
+*** 阶段 1:位图到数组索引
 #+begin_notes
 In stage 1, we our functions take in 64 byte * 8 bit blocks
-and output bitmasks of 64 bits each
-we have several bit mask types
-
-quotes, between quotes, structure, whitespace
-
 however these masks are sparse, sometimes it can be 4 char before we a faced with a 1
 sometimes the spaces are 4, and the spaces could be 40.
-
 if we iterate through this and process it with if else statements, its unpredictable branching and will cause performance penalty, mson does this
-
 as such we want to extract the bits into a list of indexes instead of working directly with the bitsets.
 #+end_notes
-#+begin_quote
+#+begin_src text
 { "\\\"Nam[{": [ 116,"\\\\" , 234, "true", false ], "t":"\\\"" }: input data
-__1_________1________1____1________1____1___________1_1_1____1__: Q
+**1**_______1________1____1________1____1___________1_1_1____1__: Q
 1_________11_1_1____1_______1____1_______1_______11____1_______1: S
 _1____________1_1__________1_1____1_______1_____1__1__________1_: W
-#+end_quote
-- take Q for example, we want to convert Q's bit mask into a list of indexes        以 Q 为例，我们希望将 Q 的位掩码转换为索引列表
-  - [2, 12, 22, 27, 37, 42, 54, 56, 58, 62]        [2, 12, 22, 27, 37, 42, 54, 56, 58, 62]
-
-**** extraction
-- 2 instructions     2 条指令
-- tzcnt count trailing least significant 0 bits        tzcnt 用于计算尾部最低有效的 0 位数
-- blsr which delete the last bit.        blsr 用于清除最低位
+#+end_src
+- 以 Q 为例,我们要将 Q 的位掩码转换为索引列表
+  - [2, 12, 22, 27, 37, 42, 54, 56, 58, 62]
+*** 提取
+#+begin_notes
+compiler will automatically optimize this for you
+#+end_notes
+- 2 条说明
+  - TZCNT 计算尾随最不重要的 0 位
+  - BLSR 删除最后设置的位。
 #+begin_src text
 a = 1010000
-idx = tzcnt(a) // 4
-a = blsr(a)    // 1000000
-idx = tzcnt(a) // 6
+idx = tzcnt(a) // 4       count 0 after lowest bit
+a = blsr(a)    // 1000000 remove lowest set bit
+idx = tzcnt(a) // 6       count 0 after lowest bit
+[4, 6]
 #+end_src
-
-**** Naive Implementation  天真的实现
+*** 朴素的实现
 #+begin_notes
 the compiler will automatically optimize this into the tzcnt and blsr
 that while loop is the part with the unpredictable branching which will cost 10-20 cycles for every wrong prediction
@@ -1145,7 +1198,6 @@ how do we solve it?
 #+begin_src c++
 void extract_set_bits_unoptimized(uint64_t bitset, uint32_t* output) {
     uint32_t pos = 0;
-
     // This while loop is the source of unpredictable branches
     while (bitset) {
         // Find position of lowest set bit
@@ -1157,91 +1209,93 @@ void extract_set_bits_unoptimized(uint64_t bitset, uint32_t* output) {
     }
 }
 #+end_src
-
-**** Minimal branching implementation  最小化分支实现
+*** 最小分支实现
+#+begin_notes
+unfortunately in this case it cannot avoid the if else check
+so the trick we do is that we do 8 times
+in one branch check
+#+end_notes
+#+ATTR_HTML: :style font-size: 16px; width: 95%;
 #+begin_src c++
 void extract_set_bits_optimized(uint64_t bitset, uint32_t* output) {
     // Get total number of set bits
     uint32_t count = __builtin_popcountll(bitset);
     uint32_t* next_base = output + count;
-
     // Process 8 bits at a time unconditionally
     while (bitset) {
         // Extract next 8 set bit positions, even if we don't have 8 bits
         *output++ = __builtin_ctzll(bitset);
         bitset &= (bitset - 1);  // Clear lowest set bit (blsr instruction)
-
         *output++ = __builtin_ctzll(bitset);
         bitset &= (bitset - 1);
-
         *output++ = __builtin_ctzll(bitset);
         bitset &= (bitset - 1);
-
         *output++ = __builtin_ctzll(bitset);
         bitset &= (bitset - 1);
-
         *output++ = __builtin_ctzll(bitset);
         bitset &= (bitset - 1);
-
         *output++ = __builtin_ctzll(bitset);
         bitset &= (bitset - 1);
-
         *output++ = __builtin_ctzll(bitset);
         bitset &= (bitset - 1);
-
         *output++ = __builtin_ctzll(bitset);
         bitset &= (bitset - 1);
     }
-
     // Reset output pointer to actual end based on real count
     output = next_base;
 }
 #+end_src
-
-** Stage 1: 2 Eliminated escaped or quoted substring  阶段 1：2 消除转义或引号内子字符串
-*** Get backslash  获取反斜杠
+** 阶段 1:2 消除转义或引用的子字符串
+*** 获取反斜杠
+#+begin_notes
+next we have to get the quotes
+the biggest problem is that we have to escape invalid quotes
+this part is very logic intensive and may not make sense at first
+i will just quickly go through this without explaining too much
+I think you can read the paper to understand this part instead
+#+end_notes
+#+ATTR_HTML: :style font-size: 16px; width: 120%; margin-left: -10%;
 #+begin_src text
 { "\\\"Nam[{": [ 116,"\\\\" , 234, "true", false ], "t":"\\\"" }: input data
 ___111________________1111_______________________________111____: B = backslash_bits
 ____111_________________1111______________________________111___: bits_shifted_left = backslash_bits << 1
-
 ___111________________1111_______________________________111____: bits
 ____000_________________0000______________________________000___: inverted = ~bits_shifted_left
 ___1__________________1__________________________________1______: S = starts = bits & inverted
 // we get the first backslash of every group
 #+end_src
-
-*** Get odd length sequences starting on an odd offset  获取在奇数偏移开始的奇数长度序列
+*** 获取以奇数偏移量开头的奇数长度序列
+#+ATTR_HTML: :style font-size: 14px;
 #+begin_src text
+{ "\\\"Nam[{": [ 116,"\\\\" , 234, "true", false ], "t":"\\\"" }: input data
 _1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1: O (constant)
 ___111________________1111_______________________________111____: B = backslash_bits
 ___1__________________1__________________________________1______: S = starts = bits & inverted
 _1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1: O (constant)
 ___1_____________________________________________________1______: OS = S & O
-
 // add B to OS, yielding carries on backslash sequences with odd starts
 ___1_____________________________________________________1______: OS = S & O
 ___111________________1111_______________________________111____: B = backslash_bits
    -->                                                   -->
 ______1_______________1111__________________________________1___: OC = B + OS
-
 // filter out the backslashes from the previous addition, getting carries only
 ___111________________1111_______________________________111____: B = backslash_bits
 ___000________________0000_______________________________000____: ~B
 ______1_______________1111__________________________________1___: OC = B + OS
 ______1_____________________________________________________1___: OCO = OC & ~B
-
 // get the odd-length sequence starting on an odd offset and ending on even offset
 ______1_____________________________________________________1___: OCO = OC & ~B
 1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1: E (constant)
 ______1_____________________________________________________1___: OD2 = OCO & E
+{ "\\\"Nam[{": [ 116,"\\\\" , 234, "true", false ], "t":"\\\"" }: input data
 // this shows two odd-length sequence starting on an odd offset
 #+end_src
-
-*** Get odd length sequences starting on an even offset  获取在偶数偏移开始的奇数长度序列
+*** 获取以偶数偏移量开头的奇数长度序列
+its just the reverse of what we done just now
+#+ATTR_HTML: :style width: 120%; margin-left: -10%;
 #+begin_src text
 { "\\\"Nam[{": [ 116,"\\\\" , 234, "true", false ], "t":"\\\"" }: input data
-1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1: O (constant)
+1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_: E (constant)
 ___1__________________1__________________________________1______: S = starts = bits & inverted
 ______________________1_________________________________________: ES = S & E
 ___111________________1111_______________________________111____: B = backslash_bits
@@ -1256,68 +1310,68 @@ _1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1: O (constant)
 ________________________________________________________________: OD1 = ECE & ~E
 // there are no odd-length sequences of backslashes starting on an even offset
 #+end_src
-
-*** Get sequences with odd offset  获取奇数偏移的序列
+*** 获取具有奇数偏移量的序列
+#+ATTR_HTML: :style width: 110%; margin-left: -5%;
 #+begin_src text
 // merge results, yielding ends of all odd-length sequence of backslashes
 ________________________________________________________________: OD1 = ECE & ~E
 ______1_____________________________________________________1___: OD2 = OCO & E
-
 ______1_____________________________________________________1___: OD = OD1 | OD2
 { "\\\"Nam[{": [ 116,"\\\\" , 234, "true", false ], "t":"\\\"" }: input data
-
 // these " are escaped and thus are counted as text instead of structural characters
 #+end_src
-
-*** Eliminated escape  消除转义
+*** 消除转义
+#+begin_notes
+this is the last step so we remove invalid quotes that are backslashed
+notice the CLMUL instruction below, we will talk about that one
+how to convert the start and end locations into a continuous mask
+#+end_notes
 #+begin_src text
 { "\\\"Nam[{": [ 116,"\\\\" , 234, "true", false ], "t":"\\\"" }: input data
-__1___1_____1________1____1________1____1___________1_1_1___11__: Q = quotes
+**1**_1_____1________1____1________1____1___________1_1_1___11__: Q = quotes
 ______1_____________________________________________________1___: OD
 // we remove the escaped " quotes
-__1_________1________1____1________1____1___________1_1_1____1__: Q &= ~OD
-__1111111111_________11111_________11111____________11__11111___: CLMUL(Q,~0)
+**1**_______1________1____1________1____1___________1_1_1____1__: Q &= ~OD
+**1111111111**_______11111_________11111____________11__11111___: CLMUL(Q,~0)
 #+end_src
-
-*** Sweeping  扫描 (Sweeping)
+*** 获取引号之间的位置掩码
+#+begin_notes
+its basically this operation
+we can use this to get the area between the quates
+#+end_notes
+#+ATTR_HTML: :style font-size: 18px;
 #+begin_src c++
 uint64_t xorShiftOperations(uint64_t num, bool rightShift, bool tutorial = false) {
-    // Array of shift amounts
-    int shifts[] = {1, 2, 4, 8, 16, 32};
     uint64_t result = num;
-    for (int shift : shifts) {
-        result ^= (result << shift);
+    for (int i = 1; i <= 64; i++) {
+        result ^= (num << i);
     }
     // 0000000000000000000010000000000000000000000000000000000000000000
     // after apply
     // 0000000000000000000011111111111111111111111111111111111111111111
-
     // 0001000000000000000000000000000000000000000000000000000000000000
     // after apply
     // 0001111111111111111111111111111111111111111111111111111111111111
     return result;
 }
 #+end_src
-
-*** Sweeping  扫描 (Sweeping)
+*** 清扫
 #+begin_src text
 // 0000000000000000000010000000000000000000000000000000000000000000
 // OR
 // 0001000000000000000000000000000000000000000000000000000000000000
 // result
 // 0001000000000000000010000000000000000000000000000000000000000000
-
 // 0000000000000000000011111111111111111111111111111111111111111111
 // XOR
 // 0001111111111111111111111111111111111111111111111111111111111111
 // result
 // 0001111111111111111100000000000000000000000000000000000000000000
-
 #+end_src
-
-*** Sweeping  扫描 (Sweeping)
+*** 清扫
 #+begin_src text
-Testing left shift:
+Final result:
+0x00      00111111 11110000 00000111 11000000 00011111 00000000 00001100 11111000       0x07
 Initial number:
 0x00      00100000 00001000 00000100 00100000 00010000 10000000 00001010 10000100       0x07
 After left shift by 1:
@@ -1333,91 +1387,100 @@ After left shift by 16:
 After left shift by 32:
 0x00      00111111 11110000 00000111 11000000 00011111 00000000 00001100 11111000       0x07
 #+end_src
-
-*** Sweeping implemented by CLMUL, pclmulqdq  使用 CLMUL（无进位乘法）实现的扫描
+*** 由 CLMUL, pclmulqdq 实现的清扫
+#+begin_notes
+Why CLMUL is equivalent to the operation above?
+XOR is actually the (a + b) % 2
+XOR is addition without the carrying bit
+then we multiply because shifting left or right is a multiply
+#+end_notes
+- 无进位乘法器
+- CLMUL(4, 15)
+- 4 * 15
 #+begin_src text
         4
-X      20
+X      15
 ----------
         4
-X (16 + 4)
+X(8+4+2+1)
 ----------
+        4
+        8
        16
-+      64
++      32
 ----------
-       80
+       60
 ----------
 #+end_src
-
-*** Sweeping implemented by CLMUL, pclmulqdq  使用 CLMUL（无进位乘法）实现的扫描
-#+begin_src text
-- CLMUL(4, 20)
+*** 由 CLMUL, pclmulqdq 实现的清扫
+- CLMUL(4, 15)
 - XOR ~= ADD
-#+end_src
-
-*** Sweeping implemented by CLMUL, pclmulqdq  使用 CLMUL（无进位乘法）实现的扫描
 #+begin_src text
-- CLMUL(inputJsonBitmask, EvenBitMask)
+         0100  (4)
+   X     1111  (15)
+-------------
+        00100  (X1 means 4 << 0)
+XOR    00100_  (X2 means 4 << 1)
+XOR   00100__  (X4 means 4 << 2)
+XOR  00100___  (X8 means 4 << 3)
+-------------
+       111100  (all XORed together)
+-------------
 #+end_src
-#+begin_src c++
-int shifts[] = {1, 2, 4, 8, 16, 32};
-uint64_t result = num;
-for (int shift : shifts) {
-    result ^= (result << shift);
-}
-// 01010101 01010101 01010101 01010101
-
-//            input
-// XOR (input <<  1)
-// XOR (input <<  2)
-// XOR (input <<  4)
-// XOR (input <<  8)
-// XOR (input << 16)
-// XOR (input << 32)
-// ----------------
-//       quote mask
-// ----------------
-#+end_src
-
-*** finally get quote mask  最终得到引号掩码
+*** 最终获取引号掩码
 #+begin_src text
 { "\\\"Nam[{": [ 116,"\\\\" , 234, "true", false ], "t":"\\\"" }: input data
-__1111111111_________11111_________11111____________11__11111___: CLMUL(Q,~0)
+**1111111111**_______11111_________11111____________11__11111___: CLMUL(Q,~0)
 #+end_src
-
-** Stage 1: 3 Character-Encoding Validation  阶段 1：3 字符编码验证
-1. Initial ASCII Fast Path, first bit == 0        初始 ASCII 快速通路，首位为 0
-2. Main algorithm        主算法
-   1. Range check(0xF4 saturated subtract)        范围检查（0xF4 饱和减法）
-   2. Continuation Byte validation        连续字节验证
-
-*** Check for Ascii fast path  检查 ASCII 快速通路
+** 阶段 1:3 字符编码验证
+#+begin_notes
+next we have to validate the UTF-8
+- most data is ascii, first thing to do is check if the first bit of every byte is 0
+- if it is, its all validated
+- if not we go through the algorithm that the authors wrote
+#+end_notes
+1. 初始 ASCII 快速路径,第一位 == 0
+2. 主要算法
+   1. 范围检查(0xF4 饱和减法)
+   2. 连续字节验证
+*** 检查 Ascii 快速路径
 #+begin_src text
 Single byte (ASCII):
 0xxxxxxx                     (values 0-127)
 Values start with 0, remaining 7 bits for data
 #+end_src
-
-*** Continuation Byte validation  连续字节验证
+*** 连续字节验证
+#+begin_notes
+i had showed this just now so we have to detect this pattern
+if it is 110 then the next must be 10 to be valid
+if its 00 then its nat valid lets see how they
+implement this in simd
+#+end_notes
 #+begin_src text
 Single byte (ASCII):
 0xxxxxxx                     (values 0-127)
 Values start with 0, remaining 7 bits for data
-
 Two bytes:
 110xxxxx 10xxxxxx           (values 128-2047)
 First byte starts with 110
-
 Three bytes:
 1110xxxx 10xxxxxx 10xxxxxx  (values 2048-65535)
 First byte starts with 1110
-
 Four bytes:
 1111xxxx 10xxxxxx 10xxxxxx 10xxxxxx   (values 65536+)
 First byte starts with 11110
 #+end_src
-
-**** map to values  映射到数值
+*** 映射到值(再次 VPSHUFB!)
+#+begin_notes
+we look at the high nibble for this since only the high nibble is involved
+if it is ascii, we use the lookup table to get it to 1
+if it is 10xx we set it to 0
+if 1100 2
+1110 3
+1111 4
+look at the example below, notice a pattern?
+it will be 4000 if it is length 4, length 3 is 300
+#+end_notes
 | high | Dec |   | high | Dec |
 |------+-----+---+------+-----|
 | 0000 |   1 |   | 1000 |   0 |
@@ -1431,21 +1494,25 @@ First byte starts with 11110
 #+begin_src text
 1111xxxx 10xxxxxx 10xxxxxx 10xxxxxx   (values 65536+)
 4 0 0 0
-
 1110xxxx 10xxxxxx 10xxxxxx  (values 2048-65535)
 3 0 0
 #+end_src
-
-**** SIMD validation algorithm  SIMD 验证算法
+*** SIMD 验证算法
+#+begin_notes
+this is the algorithm, we shift right-1 add back
+shift 2 minus 2 add back
+notice we get a 4 3 2 1 3 2 1 1 1 1
+at the end of it, there should be nothing bigger than 4
+and no 0 if have 0 its wrong
+next show example of a wrong one
+#+end_notes
 #+begin_src text
 4 0 0 0 3 0 0 2 0 1 1 1
   4 0 0 0 3 0 0 2 0 1 1 1 // <<= 1 byte, shift left by 1 byte
   3 0 0 0 2 0 0 1 0 0 0 0 // saturated subtract 1 from each byte
-
 4 0 0 0 3 0 0 2 0 1 1 1
   3 0 0 0 2 0 0 1 0 0 0 0
 4 3 0 0 3 2 0 2 1 1 1 1   // add it back into the original mapping
-
 4 3 0 0 3 2 0 2 1 1 1 1   // add it back into the original mapping
     4 3 0 0 3 2 0 2 1 1 1 1   // <<= 2 byte, shift left by 2 bytes
     2 1 0 0 1 0 0 0 0 0 0 0   // saturated subtract 2
@@ -1453,32 +1520,245 @@ First byte starts with 11110
 // the end result will have no 0
 // none of the numbers are bigger than the original
 #+end_src
-
-**** SIMD validation algorithm: Invalid example  SIMD 验证算法：无效示例
+*** SIMD 验证算法:无效示例
+#+begin_notes
+look at this part, after 4 its supposed to be 4000
+but i put a 3 there
+lets look at a bad example
+we do the same steps shuft left subtract 1
+#+end_notes
 #+begin_src text
 2 0 0 0 4 3 0 0
   2 0 0 0 4 3 0 // shift left 1
   1 0 0 0 3 2 0 // saturated subtract 1
 2 1 0 0 4 6 2 0
-
 2 1 0 0 4 6 2 0
     0 0 2 1 0 0 4 6 // shift left 2
     0 0 0 0 0 0 2 4 // saturated subtract 2
 2 1 0 0 4 6 4 4
-
 2 0 0 0 4 3 0 0
 2 1 0 0 4 6 4 4
     --- zeros found here invalid
           - 6 > 3
 #+end_src
-
-*** Step-by-Step Visual Explanation  逐步视觉解释
-****** Step 1: Initial masking of high nibbles  步骤 1：初始高半字节掩码
+* 阶段 2:构建磁带
+** 阶段 2:磁带
+*** 磁带条目的三个类别
+#+begin_notes
+after finding the location of everything and
+knowing that it is valid
+i will go through how they make this tape and parse the values
+a tape is made up of entries, each entry is 64 byte
+this is for byte alignment
+direct values are the simplest
+n must be null, t must be true, f must be false
+numbers will take 2 entry 128 bytes
+strings take 1 entry and point to another buffer where the real string is at
+this allows our stucture to be quickly traversable and not polluted with strings of unknown length
+last is the structural entrys
+they take 1 entry and the data on the right is the location of the other end of the bracket
+in the tape
+allows us to skip arrays and objects if we want to
+#+end_notes
+1. 直接值(原子)
+   - null、true、false
+   - 数字(整数和浮点数) - 占用 2 个磁带条目
+2. 字符串引用
+   - 指向单独的字符串缓冲区
+   - 不是原始 JSON 字符串
+3. 结构化导航
+   - 数组括号 [,]
+   - 对象大括号 {,}
+   - 包含跳转索引
+*** 基本结构
+#+begin_notes
+so for string and structural
+the payload is the offset to the buffer
+jump index to the other location of the structure in the tape
+else the other one is a type marker
+#+end_notes
+- 磁带是 64 位字的数组
+- 每个条目:=TYPE_MARKER × 2^56 + payload=
+- 高 8 位:类型信息
+- 低 56 位:值或引用
+#+BEGIN_SRC text
+63      56 55                   0
++--------+----------------------+
+|  TYPE  |     PAYLOAD          |
++--------+----------------------+
+   8 bits      56 bits
+#+END_SRC
+*** 直接值(原子)
+#+begin_notes
+these just tell you the type
+n for null
+t for true
+f for false
+#+end_notes
+#+BEGIN_SRC text
+01101110 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+   ^'n' null
+Hex: 0x6E00000000000000
+01110100 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+   ^'t' true
+Hex: 0x7400000000000000
+01100110 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+   ^'f' false
+Hex: 0x6600000000000000
+#+END_SRC
+*** 数字:整数示例(42)
+占用 2 个磁带条目:
+-第一个只是一个类型标记
+-第二个是值
+#+BEGIN_SRC text
+Entry 1 (type marker):
+01101100 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+   ^'l'
+Hex: 0x6C00000000000000
+Entry 2 (value):
+00000000 00000000 00000000 00000000 00000000 00000000 00000000 00101010
+                                                                 ^42
+Hex: 0x000000000000002A
+#+END_SRC
+*** 数字:浮点示例(3.14)
+占用 2 个磁带条目:
+#+BEGIN_SRC text
+Entry 1 (type marker):
+01100100 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+   ^'d'
+Hex: 0x6400000000000000
+Entry 2 (value in IEEE 754):
+01000000 00001001 00011110 10111000 01010100 01000000 00000000 00000000
+Hex: 0x4009219940000000
+#+END_SRC
+*** 字符串磁带条目
+#+BEGIN_SRC text
+Example for "..........hello":
+Binary:
+00100010 00000000 00000000 00000000 00000000 00000000 00000000 00001010
+   ^'"'                                                         ^offset=10
+Hex: 0x220000000000000A
+#+END_SRC
+- 字符串缓冲区是一个单独的数组,用于存储标准化的 UTF-8 字符串
+**** 这种方法的好处
+- 快速的长度检索 - 无需在磁带中进行可变长度猜测搜索
+- 包含标准化的 UTF-8 字符串
+*** 对象示例
+#+BEGIN_SRC text
+{"name": "John"}
+Opening brace (points forward):
+Binary:
+01111011 00000000 00000000 00000000 00000000 00000000 00000000 00000010
+   ^'{'                                                         ^next=2
+Hex: 0x7B00000000000002
+Closing brace (points backward):
+Binary:
+01111101 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+   ^'}'                                                         ^prev=0
+Hex: 0x7D00000000000000
+#+END_SRC
+*** 数组示例
+#+begin_notes
+see here i can have this index here to jump to the other side without reading the array
+next noe is more important
+#+end_notes
+#+begin_src text
+array = [1,2,3]
+#+end_src
+| addr | type    | char |         tape entry |
+|------+---------+------+--------------------|
+|    0 | array   | [--8 | 0x5B00000000000008 |
+|    1 | integer | l    | 0x6C00000000000000 |
+|    2 | value   |      | 0x0000000000000001 |
+|    3 | integer | l    | 0x6C00000000000000 |
+|    4 | value   |      | 0x0000000000000002 |
+|    5 | integer | l    | 0x6C00000000000000 |
+|    6 | value   |      | 0x0000000000000003 |
+|    7 | array   | ]--0 | 0x5D00000000000000 |
+|    8 | other   |      |              other |
+*** JSON 文档
+#+begin_notes
+this is just an example of how an object would look like
+#+end_notes
+#+BEGIN_SRC json
+{
+  "name": "John",
+  "age": 42,
+  "active": true
+}
+#+END_SRC
+#+BEGIN_SRC text
+Idx  Type    Payload   Description
+0:   'r'     12        Root (points to end)
+1:   '{'     12        Object start (points to end)
+2:   '"'     100       String "name" (points to string buffer offset 100)
+3:   '"'     150       String "John" (points to string buffer offset 150)
+4:   '"'     200       String "age" (points to string buffer offset 200)
+5:   'l'     0         Integer marker
+6:   -       42        Integer value
+7:   '"'     250       String "active" (points to string buffer offset 250)
+8:   't'     0         true value
+9:   '}'     1         Object end (points to start)
+10:  'r'     0         Root end (points to start)
+#+END_SRC
+*** 磁带优势
+- 缓存友好的线性布局
+- 使用索引跳转快速导航
+- SIMD 友好的处理
+- 可预测的内存布局
+** 阶段 2:1 数字解析
+*** 了解 is_all_digits
+#+begin_notes
+when parsing for numbers, there is no choice but to use if else
+however the authors noticed many numbers are longer than 8 digits
+so they develop a way to check and parse numbers of 8 digit size
+this is the algo for fast digit check
+we run this exact algorithm and if the output is 3333
+it must all be digits, let me explain why
+#+end_notes
+快速 8 位数检查
+#+begin_src c++
+uint64 high_nibble = val & 0xF0F0F0F0F0F0F0F0;
+uint64 low_nibble = ((val + 0x0606060606060606) & 0xF0F0F0F0F0F0F0F0) >> 4;
+uint64 combined = high_nibble | low_nibble;
+bool is_all_digits = combined == 0x3333333333333333;
+#+end_src
+*** 主要见解:0x29 到 0x3A 的 ASCII 字符
+#+begin_notes
+So there are 2 things to check, less than 0x30 which is 0x2F up here
+0x3A which is bigger than 9 0x39 down here
+see a pattern notice all of these are 3
+and notice the one behind is 0123..9
+#+end_notes
+- 请注意,有效数字的所有高半字节均为 3
+#+ATTR_HTML: :style font-size: 80%;
+| Char |  Hex | Binary    | Description   |                        |
+|------+------+-----------+---------------+------------------------|
+| '/'  | 0x2F | 0010 1111 | Forward Slash |                        |
+|------+------+-----------+---------------+------------------------|
+| '0'  | 0x30 | 0011 0000 | Digit Zero    | <-- Valid digits start |
+| '1'  | 0x31 | 0011 0001 | Digit One     |                        |
+| '2'  | 0x32 | 0011 0010 | Digit Two     |                        |
+| '3'  | 0x33 | 0011 0011 | Digit Three   |                        |
+| '4'  | 0x34 | 0011 0100 | Digit Four    |                        |
+| '5'  | 0x35 | 0011 0101 | Digit Five    |                        |
+| '6'  | 0x36 | 0011 0110 | Digit Six     |                        |
+| '7'  | 0x37 | 0011 0111 | Digit Seven   |                        |
+| '8'  | 0x38 | 0011 1000 | Digit Eight   |                        |
+| '9'  | 0x39 | 0011 1001 | Digit Nine    | <-- Valid digits end   |
+|------+------+-----------+---------------+------------------------|
+| ':'  | 0x3A | 0011 1010 | Colon         |                        |
+*** 步骤 1:高半字节的初始掩码
+#+begin_notes
+lets go throuh an example first check must be that the
+high nibble is all 3
+very easy in c++ it looks like this
+#+end_notes
 #+begin_src c++
 uint64 high_nibble = val & 0xF0F0F0F0F0F0F0F0;
 #+end_src
-- if you are lesser than 0x3X, you are 0x2F,        如果小于 0x3X，则为 0x2F，
-- Let's take valid input "12345678":        以有效输入 "12345678" 为例:
+- 如果您小于 0x3X,则为 0x2F,
+- 让我们采用有效输入“12345678”:
 #+BEGIN_EXAMPLE
 Input bytes:    31 32 33 34 35 36 37 38
                 || || || || || || || ||
@@ -1489,31 +1769,36 @@ Mask:           F0 F0 F0 F0 F0 F0 F0 F0
                 =  =  =  =  =  =  =  =
 Result1:        30 30 30 30 30 30 30 30
 #+END_EXAMPLE
-
-****** How the low nibble check works  低半字节检查如何工作
-- we want to ensure that low nibble is within 0xX0 - 0xX9        我们希望确保低半字节在 0xX0 到 0xX9 之间
-  - 0xXA - 0xXF is illegal        0xXA 到 0xXF 是非法的
-    * Analyzing Carry Detection with Binary        使用二进制分析进位检测
-
-****** Case 1: Valid Digit (0x39 = '9')  案例 1：有效数字 (0x39 = '9')
+*** 低半字节检查的工作原理
+#+begin_notes
+we want this range to be illegal
+we do that with carry bit detection
+if we add some number, it will over flow and affect the next bit and cause the number to be bigger than 3
+#+end_notes
+- 我们要确保低半字节在 0xX0 - 0xX9 范围内
+  - 0xXA - 0xXF 是非法的
+    - 使用二进制分析进位检测
+*** 情况 1:有效数字(0x39 = '9')
+#+begin_notes
+they chose 0110 is because 9 + 6 = 15
+it is still within
+imagine if the value is 10, invalid, + 6 will overflow
+#+end_notes
 #+BEGIN_EXAMPLE
 0x39 = 0011 1001  (Original value '9')
 0x06 = 0000 0110  (Value we add)
       -----------
       0011 1111  (Result = 0x3F)
 Low nibble does not overflow into high nibble and affect the 0x3 in high nibble
-
 After masking high nibble (& 0xF0):
 0x3F = 0011 1111
 0xF0 = 1111 0000
       -----------
       0011 0000  (= 0x30)
-
 After right shift by 4:
 0x30 >> 4 = 0000 0011  (= 0x03) ✓ Valid!
 #+END_EXAMPLE
-
-****** Case 2: Invalid Character (0x3A = ':')  案例 2：无效字符 (0x3A = ':')
+*** 情况 2:无效字符(0x3A = ':')
 #+BEGIN_EXAMPLE
 0x3A = 0011 1010  (Original value ':')
 0x06 = 0000 0110  (Value we add)
@@ -1523,24 +1808,20 @@ After right shift by 4:
       -----------
       0100 0000  (Result = 0x40) <- Notice the carry!
                                    The '1' carried into the high nibble
-
 After masking high nibble (& 0xF0):
 0x40 = 0100 0000
 0xF0 = 1111 0000
       -----------
       0100 0000  (= 0x40)
-
 After right shift by 4:
 0x40 >> 4 = 0000 0100  (= 0x04) ✗ Invalid!
-
- 0x3X
+0x3X
 |0xX4
 -----
- 0x34 <- INVALID
+0x34 <- INVALID
 -----
 #+END_EXAMPLE
-
-****** Step 2: Add 0x06 to detect non-digits  步骤 2：加上 0x06 以检测非数字
+*** 步骤 2:添加 0x06 以检测非数字
 #+BEGIN_EXAMPLE
 Low nibbles:    1  2  3  4  5  6  7  8
 Add 0x06:       7  8  9  A  B  C  D  E
@@ -1549,25 +1830,25 @@ Add 0x06:       7  8  9  A  B  C  D  E
 If original <= 9: No carry to high nibble
 If original > 9: Carry affects high nibble
 #+END_EXAMPLE
-
-****** Step 3: Example with valid digits (0-9)  步骤 3：有效数字 (0-9) 示例
+*** 步骤 3:有效数字(0-9)的示例
+#+begin_notes
+skip
+#+end_notes
+Take "12345678":
 #+BEGIN_EXAMPLE
-
 Original:       31 32 33 34 35 36 37 38
                 v  v  v  v  v  v  v  v
 high nibble:    30 30 30 30 30 30 30 30
-
 Original:       31 32 33 34 35 36 37 38
 After +0x06:    37 38 39 3A 3B 3C 3D 3E
+                               ^  ^  ^  ^
+If original > 9, carry effects the high nibble >3
 Mask high:      30 30 30 30 30 30 30 30
-low nibble:     03 03 03 03 03 03 03 03
-
-high nibble:    30 30 30 30 30 30 30 30
-low nibble:     03 03 03 03 03 03 03 03
+Shift right 4:  03 03 03 03 03 03 03 03
 OR together:    33 33 33 33 33 33 33 33
 #+END_EXAMPLE
-
-****** Step 4: Example with invalid character (';' = 0x3B)  步骤 4：包含无效字符 (';' = 0x3B) 的示例
+*** 步骤 4:无效字符(';' = 0x3B)的示例
+Take "1234;678":
 #+BEGIN_EXAMPLE
 Original:       31 32 33 34 3B 36 37 38
 After +0x06:    37 38 39 3A 41 3C 3D 3E
@@ -1580,59 +1861,65 @@ high nibble:    30 30 30 30 30 30 30 30
 OR together:    33 33 33 33 34 33 33 33 ≠ 0x3333...
                                ^ Caught!
 #+END_EXAMPLE
-
-***** Why It Works  原理解析
-1. First part (val & 0xF0F0...):        第一部分 (val & 0xF0F0...)：
-   - Isolates high nibbles         隔离出高半字节
-   - Must be 0x30 for valid digits         对于有效数字，高半字节必须为 0x30
-2. Second part ((val + 0x06...) & 0xF0...):         第二部分 ((val + 0x06...) & 0xF0...)：
-   - Adding 0x06 to low nibble:         对低半字节加 0x06：
-     - For 0-9: Result stays within nibble         对于 0-9：结果保持在半字节内
-     - For >9: Causes carry         对于大于 9 的数字：会产生进位
-   - After shift right 4:         右移 4 位后：
-     - Valid digits: Always 0x03         有效数字始终为 0x03
-     - Invalid: Different value         无效数字会产生不同的值
-3. When OR'd together:         按位或之后：
-   - Valid digits: Always 0x33         有效数字总是 0x33
-   - Invalid: Different pattern         无效数字会得到不同的模式
-
-***** Examples with Different Cases  不同情况的示例
-****** Valid Cases  有效情况
+*** 它为什么有效
+#+begin_notes
+skip
+#+end_notes
+1. 第一部分 (val & 0xF0F0...):
+   - 隔离高半字节
+   - 对于有效数字,必须为 0x30
+2. 第二部分 ((val + 0x06...) & 0xF0...):
+   - 将 0x06 添加到低半字节:
+     - 对于 0-9:结果保持在半字节内
+     - 对于>9:导致进位
+   - 右移 4 位后:
+     - 有效数字:始终为 0x03
+     - 无效:不同的值
+3. 当 OR 在一起时:
+   - 有效数字:始终为 0x33
+   - 无效:不同的模式
+*** 有效案例
 #+BEGIN_EXAMPLE
 "00000000" -> 0x3333333333333333 ✓
 "99999999" -> 0x3333333333333333 ✓
 "12345678" -> 0x3333333333333333 ✓
 #+END_EXAMPLE
-****** Invalid Cases  无效情况
+*** 无效案例
 #+BEGIN_EXAMPLE
 "A" (0x41):
 Original:  41
 +0x06:     47
 High:      40 ≠ 30 -> Fails
-
 "/" (0x2F):
 Original:  2F
 +0x06:     35
 High:      20 ≠ 30 -> Fails
-
 ":" (0x3A):
 Original:  3A
 +0x06:     40
 High:      40 ≠ 30 -> Fails
 #+END_EXAMPLE
-
-***** Performance Benefits  性能优势
-- Single comparison instead of 8 individual checks         仅一次比较替代 8 次单独检查
-- No branches (important for modern CPUs)         无分支（对现代 CPU 非常重要）
-- Uses native 64-bit operations         使用原生 64 位运算
-- Exploits CPU's ability to do parallel checks         利用 CPU 进行并行检查的能力
-
-This algorithm is a beautiful example of bit manipulation that turns what would normally be 8 comparisons into a single mathematical test.  该算法是位操作的优美示例，将通常需要 8 次比较的过程转换为一次数学测试。
-
-*** Understanding SIMD-Based Fast Eight-Digit Number Parsing  理解基于 SIMD 的快速八位数字解析
-**** Overview
-Convert ASCII string of 8 digits to integer using SIMD instructions. 概述：使用 SIMD 指令将 8 位数字的 ASCII 字符串转换为整数.
-Example: "12345678" -> 12345678  例如："12345678" -> 12345678
+*** 性能优势
+- 单个比较而不是 8 个单独的检查
+- 没有分支(对于现代 CPU 而言很重要)
+- 使用本机 64 位操作
+- 利用 CPU 并行检查的能力
+此算法是位操作的一个很好的示例,它将通常为 8 个比较转变为单个数学测试。
+*** 了解基于 SIMD 的快速八位数字数解析
+#+begin_notes
+after we know that it is all digits,
+we need to parse the number into a valid number
+we wrote this algo before
+the authors did a simd version which looks like this
+it looks scary
+i will explain each step
+notice the weird pattern 10 1 10 1
+notice the weird pattern 100 1 100 1
+notice the weird pattern 10000 1 10000 1
+you may already guess what is going to happen
+#+end_notes
+使用 SIMD 指令将 8 位数的 ASCII 字符串转换为整数。
+示例:“12345678”-> 12345678
 #+begin_src c++
 uint32_t parse_eight_digits_unrolled(char *chars) {
   __m128i ascii0 = _mm_set1_epi8(’0’);
@@ -1648,9 +1935,10 @@ uint32_t parse_eight_digits_unrolled(char *chars) {
   return _mm_cvtsi128_si32(t4);
 }
 #+end_src
-
-**** Step-by-Step Process  逐步过程
-***** Step 1: Convert ASCII to Numeric Values  步骤 1：将 ASCII 转换为数值
+*** 步骤 1:将 ASCII 转换为数值
+#+begin_notes
+remove the high nibble so that they are int8
+#+end_notes
 #+begin_src c++
   __m128i ascii0 = _mm_set1_epi8(’0’);
   __m128i number_ascii = _mm_loadu_si128((__m128i *)chars);
@@ -1664,8 +1952,12 @@ Subtract '0':   01 02 03 04 05 06 07 08  (numeric values)
                 |  |  |  |  |  |  |  |
 Instruction:    _mm_sub_epi8 (PSUBB - packed subtract bytes)
 #+END_EXAMPLE
-
-***** Step 2: Multiply Alternate Digits by 10 and Add  步骤 2：交替数字乘以 10 并相加
+*** 步骤 2:将备用数字乘以 10 并添加
+#+begin_notes
+notice the weird pattern 10 1 10 1
+multiply the one infront by 10
+add them to each other
+#+end_notes
 #+begin_src c++
   __m128i mul_1_10 = _mm_setr_epi8(10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1);
   __m128i t1 = _mm_maddubs_epi16(in, mul_1_10);
@@ -1677,11 +1969,14 @@ Multipliers:   10  1 10  1 10  1 10  1
 Results:       10  2 30  4 50  6 70  8
                 \ /   \ /   \ /   \ /
 Sums:           12    34    56    78     (as 16-bit values)
-
 Instruction: _mm_maddubs_epi16 (PMADDUBSW - multiply and add unsigned bytes to signed words)
 #+END_EXAMPLE
-
-***** Step 3: Multiply Alternate 16-bit Values by 100  步骤 3：交替 16 位数值乘以 100
+*** 步骤 3:将备用 16 位值乘以 100
+#+begin_notes
+then we do the same thing again
+100
+next is it 10000?
+#+end_notes
 #+begin_src c++
   __m128i mul_1_100 = _mm_setr_epi16(100, 1, 100, 1, 100, 1, 100, 1);
   __m128i t2 = _mm_madd_epi16(t1, mul_1_100);
@@ -1693,17 +1988,16 @@ Multipliers:  100    1  100    1
 Results:     1200   34 5600   78
                  \ /       \ /
 Sums:           1234      5678    (as 32-bit values)
-
 Instruction: _mm_madd_epi16 (PMADDWD - multiply and add packed words)
 #+END_EXAMPLE
-- what is the next step? 10000?        下一步是什么？10000?
+- 下一步是什么?10000?
 #+begin_src c++
   __m128i mul_1_10000 = _mm_setr_epi16(10000, 1, 10000, 1, 10000, 1, 10000, 1);
 #+end_src
-
-***** Step 4: Pack 32-bit Values to 16-bit  步骤 4：将 32 位数值打包成 16 位
-- so we can use _mm_setr_epi16 instead of _mm_setr_epi32        因此我们可以使用 _mm_setr_epi16 而非 _mm_setr_epi32
-  - its more efficient         这样更高效
+*** 步骤 4:将 32 位值打包到 16 位
+- 将值重新解释为 32 位而不是 16 位!?为什么?
+- 因此我们可以使用~_mm_setr_epi16~而不是~_mm_setr_epi32~
+  - 它更有效
 #+begin_src c++
     uint16 max_value = 65536;
   __m128i t3 = _mm_packus_epi32(t2, t2);
@@ -1711,11 +2005,12 @@ Instruction: _mm_madd_epi16 (PMADDWD - multiply and add packed words)
 #+BEGIN_EXAMPLE
 Before:   1234(32-bit)  5678(32-bit)
 After:    1234(16-bit)  5678(16-bit)
-
 Instruction: _mm_packus_epi32 (PACKUSDW - pack with unsigned saturation)
 #+END_EXAMPLE
-
-***** Step 5: Final Combine with Multiply by 10000  步骤 5：最终结合，乘以 10000
+*** 步骤 5:使用乘以 10000 的最终组合
+#+begin_notes
+finally we do the 10000 and get the answer
+#+end_notes
 #+begin_src c++
   __m128i mul_1_10000 = _mm_setr_epi16(10000, 1, 10000, 1, 10000, 1, 10000, 1);
   __m128i t4 = _mm_madd_epi16(t3, mul_1_10000);
@@ -1727,26 +2022,35 @@ Multipliers:  10000        1
 Results:   12340000     5678
                    \   /
 Sum:           12345678    (final 32-bit result)
-
 Instruction: _mm_madd_epi16 (PMADDWD again)
 #+END_EXAMPLE
-
-***** Summary: Why This is Fast  总结：为什么这么快
-1. Parallel Processing:        并行处理：
-   - Processes multiple digits simultaneously         同时处理多个数字
-   - Uses CPU's SIMD capabilities efficiently         高效利用 CPU 的 SIMD 功能
-2. Instruction Count:        指令数量：
-   - Traditional: ~8 loads + ~8 multiplies + ~7 adds         传统方法：大约 8 次加载、8 次乘法、7 次加法
-   - SIMD: ~7 total instructions         SIMD 方法：总共约 7 条指令
-3. Latency Analysis on Haswell:        在 Haswell 上的延迟分析：
-   - PSUBB (subtract): 1 cycle         PSUBB（减法）：1 个周期
-   - PMADDUBSW (multiply-add bytes): 5 cycles         PMADDUBSW（乘加字节）：5 个周期
-   - PMADDWD (multiply-add words): 5 cycles         PMADDWD（乘加字）：5 个周期
-   - PACKUSDW (pack): 1 cycle         PACKUSDW（打包）：1 个周期
-   - Total latency: ~17 cycles         总延迟：约 17 个周期
-
-* Actual c++ code implementation and optimization tricks in the code base  代码库中的实际 C++ 实现及优化技巧
-** SIMD8 zero cost "abstraction"  SIMD8 零成本“抽象”
+*** 摘要:为什么这么快
+#+begin_notes
+simd fast
+save instructions
+it takes aronud 17 cycles instead of much more
+#+end_notes
+1. 并行处理:
+   - 同时处理多个数字
+   - 高效地使用 CPU 的 SIMD 功能
+2. 指令计数:
+   - 传统: ~8 个加载 + ~8 个乘法 + ~7 加法 ~23 个实例
+   - SIMD: ~7 个总指令
+3. Haswell 的延迟分析:
+   - PSUBB(减):1 个周期
+   - PMADDUBSW(乘法加法字节):5 个周期
+   - PMADDWD(乘法加法字):5 个周期
+   - PACKUSDW(打包):1 个周期
+   - 总延迟:~17 个周期
+* 代码库中的实际 c++ 代码实现和优化技巧
+** SIMD8 零成本 “抽象”
+#+begin_notes
+actual coding style
+how they made their life easier
+this is how they made their classes
+heavy reuse of templating
+#+end_notes
+#+ATTR_HTML: :style font-size: 40%; width: 50%
 #+begin_src text
                           +---------------------+
                           |    base<Child>      |
@@ -1772,7 +2076,6 @@ Instruction: _mm_madd_epi16 (PMADDWD again)
    +-------▼-------+   +-------▼-------+
    | simd8<int8_t> |   | simd8<uint8_t>|
    +---------------+   +---------------+
-
 base<simd8<uint8_t>>     // Base template
     ↑
 base8<uint8_t>          // Adds common SIMD operations
@@ -1781,15 +2084,18 @@ base8_numeric<uint8_t>  // Adds numeric operations
     ↑
 simd8<uint8_t>         // Final implementation
 #+end_src
-
-*** Quality of life abstractions  提升使用体验的抽象
+*** 质量至上的抽象
+#+begin_notes
+they overwrote the max min <= >= operators to make using simd intuitive
+look here got add substract bla bla
+#+end_notes
+#+ATTR_HTML: :style width: 140%; margin-left: -20%;
 #+begin_src c++
   template<>
   struct simd8<uint8_t>: base8_numeric<uint8_t> {
     // Saturated math
     simdjson_inline simd8<uint8_t> saturating_add(const simd8<uint8_t> other) const { return _mm256_adds_epu8(*this, other); }
     simdjson_inline simd8<uint8_t> saturating_sub(const simd8<uint8_t> other) const { return _mm256_subs_epu8(*this, other); }
-
     // Order-specific operations
     simdjson_inline simd8<uint8_t> max_val(const simd8<uint8_t> other) const { return _mm256_max_epu8(*this, other); }
     simdjson_inline simd8<uint8_t> min_val(const simd8<uint8_t> other) const { return _mm256_min_epu8(other, *this); }
@@ -1803,8 +2109,11 @@ simd8<uint8_t>         // Final implementation
     simdjson_inline simd8<bool> operator<(const simd8<uint8_t> other) const { return this->lt_bits(other).any_bits_set(); }
   };
 #+end_src
-
-*** Quality of life abstractions  提升使用体验的抽象
+*** 质量至上的抽象
+#+begin_notes
+same thing
+#+end_notes
+#+ATTR_HTML: :style width: 140%; margin-left: -20%;
 #+begin_src c++
     // Bit-specific operations
     simdjson_inline simd8<bool> bits_not_set() const { return *this == uint8_t(0); }
@@ -1825,56 +2134,87 @@ simd8<uint8_t>         // Final implementation
     template<int N>
     simdjson_inline int get_bit() const { return _mm256_movemask_epi8(_mm256_slli_epi16(*this, 7-N)); }
 #+end_src
-
-**** Template Metaprogramming & CRTP vs. Virtual Functions (Dynamic Binding)  模板元编程 & CRTP 与虚函数（动态绑定）的比较
-- **Compile-Time Polymorphism with Templates/CRTP:**         使用模板/CRTP 的编译时多态：
-  - **Zero-Cost Abstraction:** The CRTP pattern lets the compiler resolve function calls at compile time.         零成本抽象：CRTP 模式使编译器在编译时解析函数调用。
-    - *Example from simdjson:*
-      #+BEGIN_SRC c++
-        template<typename Child>
-        struct base {
-          // Overloaded operator (inline, no vtable overhead)
-          simdjson_inline Child operator|(const Child other) const {
-            return _mm256_or_si256(*this, other);
-          }
-        };
-      #+END_SRC
-  - **Inlining & Optimization:** The compiler can inline these functions, reducing function call overhead.         内联与优化：编译器可以将这些函数内联，从而减少调用开销。
-  - **No Runtime Indirection:** Since the dispatch is resolved at compile time, there's no need for a vtable lookup.         无运行时间接调用：因为调度在编译时解决，无需虚表查找。
-  - **Drawback:** Code bloat can occur due to multiple template instantiations, but this is usually an acceptable trade-off in performance‑critical code.         缺点：多次模板实例化可能导致代码膨胀，但在性能关键的代码中通常是可以接受的权衡.
-*** Dynamic Binding with Virtual Functions  使用虚函数进行动态绑定
-- **Late Binding:** Function calls are resolved at runtime via a vtable.         后期绑定：函数调用在运行时通过虚表解析.
-  - *Example (the costly alternative):*
-    #+BEGIN_SRC c++
-      struct Base {
-        virtual void foo() = 0;
-        virtual ~Base() = default;
-      };
-
-      struct Derived : Base {
-        void foo() override {
-          // ... implementation ...
-        }
-      };
-    #+END_SRC
-- **Runtime Overhead:**         运行时开销:
-  - Each call incurs an extra indirection (vtable lookup).         每次调用都需要额外一次间接调用（虚表查找）。
-  - Virtual calls are generally not inlined because the exact function is only known at runtime.         虚函数调用通常不能内联，因为具体函数在运行时才确定.
-- **Comparable to Java Interfaces:**         类似于 Java 接口:
-  - In Java, interface methods (or virtual methods) are dispatched at runtime. While a JIT can sometimes inline such calls when it detects hot paths, C++ does not have a JIT and relies entirely on compile‑time optimizations.         在 Java 中，接口方法（或虚函数）在运行时分派。虽然 JIT 有时会在检测到热点
-- **Runtime Overhead:** Each call incurs an extra indirection (vtable lookup). Virtual calls are generally not inlined because the exact function is only known at runtime.  运行时开销：每次调用都需要额外一次间接调用（虚表查找）。虚函数调用通常不能内联，因为具体函数在运行时才确定.
-- **Comparable to Java Interfaces:** In Java, interface methods (or virtual methods) are dispatched at runtime. While a JIT can sometimes inline such calls when it detects hot paths, C++ does not have a JIT and relies entirely on compile‑time optimizations.  类似于 Java 接口：在 Java 中，接口方法（或虚函数）在运行时分派。虽然 JIT 有时会在检测到热点路径时内联这些调用，但 C++ 没有 JIT，完全依赖编译时优化.
-
-*** Why C++ Chooses Compile-Time Polymorphism  为什么 C++ 选择编译时多态
-    - **Performance Sensitivity:** In scenarios like high‑performance parsing (as in simdjson), every extra cycle counts.  性能敏感性：在像 simdjson 这样的高性能解析场景中，每个额外的周期都非常重要.
-    - **Deterministic Overhead:** With templates/CRTP, the performance characteristics are known at compile time—there’s no hidden cost of runtime dispatch.  开销可控：使用模板/CRTP，性能特性在编译时就已知——没有运行时调度的隐藏成本.
-    - **Contrast with Java:**  与 Java 的对比：
-      - Java’s JIT can optimize away some of the virtual call overhead during runtime, but C++ has to resolve everything during compilation, making it essential to use techniques that yield zero‑overhead abstractions.  Java 的 JIT 可以在运行时优化掉部分虚函数调用开销，但 C++ 必须在编译时解决所有问题，因此必须采用零开销抽象技术.
-
-*** Inline Functions & Compile-Time Inlining  内联函数与编译时内联
-- **Technique:** Functions are marked with `simdjson_inline` to encourage inlining.  技巧：使用 `simdjson_inline` 标记函数以促进内联.
-- **Why?** Inlining eliminates function call overhead for tiny, frequently used functions.  原因：内联消除了小型、频繁调用函数的调用开销.
-- **Example from simdjson:**  simdjson 示例：
+** 模板元编程和 CRTP 与虚函数(动态绑定)
+#+begin_notes
+here iis the thing
+this template meta programming means using template which is a direct substitution that is known at compile time
+this allows the LLVM to aggresively inline code
+inlining allows for max information so it can optimize properly
+The compiler can inline these functions, reducing function call overhead.
+no virtual function
+no run time indirection. Since the dispatch is resolved at compile time, there's no need for a vtable lookup.
+#+end_notes
+- **使用模板/CRTP 进行编译时多态性:**
+  - **零成本抽象:** CRTP 模式允许编译器在编译时解析函数调用。
+    - _来自 simdjson 的示例:_
+#+BEGIN_SRC c++
+  template<typename Child>
+  struct base {
+    // Overloaded operator (inline, no vtable overhead)
+    simdjson_inline Child operator|(const Child other) const {
+      return _mm256_or_si256(*this, other);
+    }
+  };
+#+END_SRC
+- **内联和优化**
+- **没有运行时重定向**
+*** 使用虚函数进行动态绑定
+#+begin_notes
+they prefer early binding in template rather than virtual functions
+virtual functions are like interfaces in java
+the reason why java is still fast when doing this is because
+java has a JIT, c++ does not
+java can optimize code at runtime by observation
+while c++ must be optimized at compile time
+- **运行时开销:**
+  - 每个调用都会产生额外的间接寻址(vtable 查找)。
+  - 虚调用通常不会内联,因为确切的函数仅在运行时才知道。
+- **类似于 Java 接口:**
+  - 在 Java 中,接口方法(或虚方法)在运行时分派。虽然 JIT 有时可以在它检测到热路径时内联此类调用,但 C++ 没有 JIT 并且完全依赖编译时优化。
+  - 这使得 C++ 中的虚函数与基于模板的方法相比,对于性能关键型代码而言,是一种“代价高昂”的替代方案。
+#+end_notes
+- **后期绑定:** 函数调用在运行时通过 vtable 解析。
+  - _示例(代价值高的替代方法):_
+#+BEGIN_SRC c++
+  struct Base {
+    virtual void foo() = 0;
+    virtual ~Base() = default;
+  };
+  struct Derived : Base {
+    void foo() override {
+      // ... implementation ...
+    }
+  };
+#+END_SRC
+- **运行时开销:**
+  - 间接寻址
+  - 无法内联
+- **类似于 Java 界面:**
+*** 为什么 C++ 选择编译时多态性
+#+begin_notes
+this makes c++ code fast
+deterministic
+but cause JIT come in, it might jitter, first slow
+fast then still have GC
+easier analysis
+- **性能敏感性:** 在像高性能解析(如在 simdjson 中)这样的场景中,每个额外的周期都很重要。
+- **确定性的开销:** 通过模板/CRTP,性能特征在编译时是已知的——没有运行时分派的隐藏成本。
+- **与 Java 的对比:**
+  - Java 的 JIT 可以在运行时优化掉一些虚调用开销,但 C++ 必须在编译期间解析所有内容,因此必须 使用产生零开销抽象的技术。
+#+end_notes
+| Java                                   | C++                                     |
+|----------------------------------------+-----------------------------------------|
+| • Runtime method dispatch via JIT      | • Compile-time resolution via templates |
+| • Variable latency due to GC           | • No GC = predictable latency           |
+| • Performance changes during execution | • Performance known at compile time     |
+| • Requires "warm up" for optimization  | • Consistent from first call            |
+** 内联函数和编译时内联
+#+begin_notes
+they did inlining to help the compiler get optimal code
+#+end_notes
+- **技术:** 函数标有 `simdjson_inline` 以鼓励内联。
+- **为什么?:** 内联消除了小型,常用函数的函数调用开销。
+- **来自 simdjson 的示例:**
 #+BEGIN_SRC c++
 #elif defined(__GNUC__) && !defined(__OPTIMIZE__)
   // If optimizations are disabled, forcing inlining can lead to significant
@@ -1882,23 +2222,30 @@ simd8<uint8_t>         // Final implementation
   // unoptimized builds.
   #define simdjson_inline inline
 #else
-
 // Overloaded bitwise OR operator
 simdjson_inline Child operator|(const Child other) const {
   return _mm256_or_si256(*this, other);
 }
 #+END_SRC
-- **Note:** The use of inlining on all small operations (e.g. arithmetic, bitwise operators) ensures maximum performance.  注意：对所有小操作（如算术运算、位运算）使用内联可确保最佳性能.
-
-** C++ Casts in simdjson: Performance Considerations  simdjson 中 C++ 类型转换：性能考虑
-- In high‑performance C++ code, using the proper cast is essential for both safety and speed.  在高性能 C++ 代码中，使用合适的类型转换对于安全和速度至关重要.
-- C++ provides several cast operators:  C++ 提供了多种类型转换操作符:
-  - **static_cast**: Compile‑time conversions.  **static_cast**：编译时转换.
-  - **reinterpret_cast**: Low‑level, pointer and bit‑reinterpretation.  **reinterpret_cast**：底层指针及位转换.
-  - **const_cast**: Remove constness.  **const_cast**：去除 const 属性.
-  - **dynamic_cast**: Runtime-checked casts (with RTTI).  **dynamic_cast**：运行时检查转换（带 RTTI）.
-
-*** static_cast for CRTP Efficiency  CRTP 高效的 static_cast
+- **注意:** 在所有小型操作(例如,算术,按位运算符)上使用内联可确保最大性能。
+** simdjson 中的 C++ 强制转换:性能注意事项
+#+begin_notes
+here we talk about the casting they use
+they only use static_cast and reintepret_cast which is also another
+0 cost compile time casting
+while the other 2 are runtime checked
+#+end_notes
+- 在高性能 C++ 代码中,使用正确的强制转换对于安全性和速度至关重要。
+- C++ 提供了几个强制转换运算符:
+  - **static_cast**: 编译时转换。
+  - **reinterpret_cast**: 低级,指针和位重新解释。
+  - **const_cast**: 删除 constness。
+  - **dynamic_cast**: 运行时检查的强制转换(带有 RTTI)。
+*** CRTP 效率的 static_cast
+#+begin_notes
+for example this static cast is used to make sure the other type is the same
+#+end_notes
+- 在编译时已知,确保零成本抽象。
 #+BEGIN_SRC c++
   template<typename Child>
   struct base {
@@ -1906,100 +2253,104 @@ simdjson_inline Child operator|(const Child other) const {
     // Overloaded compound assignment using CRTP
     simdjson_inline Child& operator|=(const Child other) {
       auto this_cast = static_cast<Child*>(this);
-      *this_cast = *this_cast | other;
+      _this_cast =_ this_cast | other;
       return *this_cast;
     }
   };
 #+END_SRC
-- **Notes:**
-  - The `static_cast<Child*>(this)` converts the base class pointer to the derived type.  `static_cast<Child*>(this)` 将基类指针转换为派生类指针.
-  - This conversion happens entirely at compile time, incurring no runtime cost.  该转换完全在编译时完成，不会产生运行时开销.
-
-*** reinterpret_cast for SIMD Memory Operations  SIMD 内存操作中的 reinterpret_cast
-- **Purpose:** Reinterpret raw memory (such as an array of bytes) as SIMD register types.  目的：将原始内存（如字节数组）重新解释为 SIMD 寄存器类型.
-- **Why?:** When working with intrinsics (e.g. AVX2), you need to treat data as a special type (like `__m256i`), and reinterpret_cast does this with no extra overhead.  原因：在使用内置函数（例如 AVX2）时，需要将数据视为特定类型（如 `__m256i`），而 reinterpret_cast 可以在无额外开销的情况下完成此操作.
-- **Examples from simdjson:**  simdjson 示例：
-  - **Loading Data:**
-    #+BEGIN_SRC c++
+- **注意:**
+  - `static_cast<Child*>(this)` 将基类指针转换为派生类型。
+*** SIMD 内存操作的 reinterpret_cast
+#+begin_notes
+convert array into 256 byte for simd use
+- **为什么?:** 使用内在函数(例如 AVX2)时,您需要将数据视为特殊类型(如 `__m256i`),并且 reinterpret_cast 在不增加额外开销 的情况下执行此操作。
+#+end_notes
+- 将原始内存(例如字节数组)重新解释为 SIMD 寄存器类型。
+- 无法对类型检查进行静态强制转换
+#+BEGIN_SRC c++
   static simdjson_inline simd8<T> load(const T values[32]) {
     return _mm256_loadu_si256(reinterpret_cast<const __m256i *>(values));
   }
 #+END_SRC
-- **Notes:**
-  - These reinterpret_casts allow the compiler to generate efficient SIMD load/store instructions.  这些 reinterpret_cast 使编译器能生成高效的 SIMD 加载/存储指令.
-  - They incur no runtime penalty as they are resolved during compilation.  它们在编译时解析，不产生运行时开销.
-
-*** Why Not dynamic_cast or const_cast?  为什么不使用 dynamic_cast 或 const_cast？
+- **注意:**
+  - 这些 reinterpret_cast 允许编译器生成有效的 SIMD 加载/存储指令。
+  - 它们不会产生运行时成本,因为它们是在编译期间解析的。
+*** 为什么不使用 dynamic_cast 或 const_cast?
 - **dynamic_cast:**
-  - Performs runtime type checking and incurs additional overhead.  执行运行时类型检查，会产生额外开销.
-  - Not used in performance-critical paths like simdjson.  在 simdjson 这类性能关键路径中不使用.
+  - 执行运行时类型检查并产生额外的开销。
 - **const_cast:**
-  - Removes constness, but simdjson is designed with const correctness in mind.  移除 const 属性，但 simdjson 设计时已考虑 const 正确性.
-  - There’s no need to remove constness in this low‑level, performance‑sensitive code.  在这种底层、性能敏感的代码中无需移除 const 属性.
-- **Summary:**
-  - simdjson relies on **static_cast** and **reinterpret_cast** (plus implicit conversion operators) because they guarantee zero or minimal runtime overhead.  simdjson 依赖于 **static_cast** 和 **reinterpret_cast**（以及隐式转换运算符），因为它们能保证零或极低的运行时开销.
-
-*** Summary of Casts in simdjson  simdjson 中类型转换的总结
+  - const -> other typr
+*** simdjson 中的强制转换摘要
 - **static_cast:**
-  - Used for compile‑time conversions (e.g. CRTP base-to-derived pointer conversion).  用于编译时转换（例如 CRTP 中基类指针到派生类指针的转换）.
-  - Zero‑cost and type‑safe.  零开销且类型安全.
+  - 用于编译时转换(例如,CRTP 基类到派生类指针转换)。
+  - 零成本和类型安全。
 - **reinterpret_cast:**
-  - Used for pointer re‑interpretation (e.g. converting a byte array to a SIMD register pointer).  用于指针重解释（例如将字节数组转换为 SIMD 寄存器指针）.
-  - Necessary for interfacing with low‑level intrinsics.  对于与底层内置函数接口至关重要.
-- **Avoided Casts:**
-  - **dynamic_cast** and **const_cast** are not used in performance-critical sections to prevent unnecessary runtime overhead.  在性能关键部分不使用 **dynamic_cast** 和 **const_cast**，以避免不必要的运行时开销.
-
-** Why Error Codes Outperform Exceptions  为什么错误码优于异常处理
-- Zero-cost error handling: No stack unwinding or EH tables  零成本错误处理：无需栈展开或异常处理表
-- Better compiler optimizations: Linear control flow  更佳的编译器优化：线性控制流
-- Predictable branch patterns: CPU pipelining friendly  可预测的分支模式：有利于 CPU 流水线
-- Smaller code size: No exception handling metadata  更小的代码体积：无异常处理元数据
+  - 用于指针重新解释(例如,将字节数组转换为 SIMD 寄存器指针)。
+  - 与低级别内在函数接口的必要组件。
+- **避免的强制转换:**
+  - **dynamic_cast** 和 **const_cast** 不用于性能关键部分,以防止不必要的运行时开销。
+** 为什么错误代码优于异常
+#+begin_notes
+error code does not unwind stack like how except does
+more linera flow
+predictable branching
+#+end_notes
+- 零成本错误处理:无堆栈展开或 EH 表
+- 更好的编译器优化:线性控制流
+- 可预测的分支模式:CPU 管道友好
+- 更小的代码大小:无异常处理元数据
 #+begin_src c++
-simdjson_warn_unused error_code minify(const uint8_t *buf, size_t len, uint8_t *dst, size_t &dst_len) const noexcept final {
+simdjson_warn_unused error_code minify(const uint8_t _buf, size_t len, uint8_t_ dst, size_t &dst_len) const noexcept final {
   return set_best()->minify(buf, len, dst, dst_len);
 }
 #+end_src
-
-*** Assembly Comparison: Error Code vs Exception  汇编比较：错误码 vs 异常
-**** Error Code Path (simdjson style)  错误码路径（simdjson 风格）
+*** 程序集比较:错误代码路径(simdjson 样式)
+#+begin_notes
+error path
+#+end_notes
 #+begin_src asm
 check_ascii:
   vptest %ymm0, %ymm1
   jne .error        ; Single conditional branch
   ; ... normal path ...
-
-.error:
+.error:             ; simd branchless way if possible
   mov eax, 1        ; Set error code
   ret
 #+end_src
-**** Exception Path  异常路径
+*** 程序集比较:异常路径
+#+begin_notes
+except path show the stack trace there
+#+end_notes
 #+begin_src asm
 check_ascii:
   vptest %ymm0, %ymm1
   jne .exception
   ; ... normal path ...
-
 .exception:
   call __cxa_allocate_exception  ; Heavy EH machinery
   ; ... stack unwinding setup ...
+  ; - Exception table lookups
+  ; - Destructor calls
+  ; - Catch handler matching
+  ; - Stack unwinding
 #+end_src
-
-*** Key Performance Factors  关键性能因素
-1. **No EH Table Overhead**  无异常处理表开销
-   - Exception handling requires RTTI and stack unwinding tables  异常处理需要 RTTI 和栈展开表
-   - Increases binary size by ~10-15% in our benchmarks  在我们的基准测试中，二进制文件大小增加约 10-15%
-2. **CPU Branch Prediction**  CPU 分支预测
-   - Error codes use simple conditional branches  错误码使用简单条件分支
-     - Exceptions create unpredictable control flow  而异常则会导致不可预测的控制流
-3. **Inlining Friendly**  有利于内联
-   - Error return paths don't inhibit function inlining  错误返回路径不会阻碍函数内联
-   - Critical for SIMD optimizations:  对 SIMD 优化至关重要:
-
-** Memory Alignment & Padding  内存对齐与填充
-- Correct memory alignment (and extra padding) is crucial for SIMD operations; unaligned accesses can severely hurt performance.  正确的内存对齐（及额外填充）对 SIMD 操作至关重要；未对齐的访问会严重影响性能.
-- simdjson uses types such as padded_string and padded_string_view to guarantee ample padding.  simdjson 使用 padded_string 和 padded_string_view 等类型来确保足够的填充.
-- Example from the padded string view helper:  来自 padded string view 辅助函数的示例:
-#+begin_src cpp
+*** 主要性能因素
+1. **无 EH 表开销**
+   - 异常处理需要 RTTI 和堆栈展开表
+2. **CPU 分支预测**
+   - 错误代码使用简单的条件分支
+     - 异常创建不可预测的控制流
+3. **内联友好**
+   - 错误返回路径不会抑制函数内联
+   - 对于 SIMD 优化至关重要
+** 内存对齐和填充
+#+begin_notes
+- we working with SBE should know about this
+  i'll skip its just that aligned access is faster than non aligned access
+- simdjson uses types such as padded_string and padded_string_view to guarantee ample padding.
+#+end_notes
+- 正确的内存对齐(和额外的填充)对于 SIMD 操作至关重要;未对齐的访问会严重损害性能。
+#+BEGIN_SRC cpp
 simdjson::padded_string_view get_padded_string_view(const char *buf, size_t len,
                                                    simdjson::padded_string &jsonbuffer) {
   if (need_allocation(buf, len)) { // unlikely case
@@ -2009,43 +2360,34 @@ simdjson::padded_string_view get_padded_string_view(const char *buf, size_t len,
     return simdjson::padded_string_view(buf, len, len + simdjson::SIMDJSON_PADDING);
   }
 }
-#+end_src
-
-** Loop Unrolling and Vectorized Processing  循环展开与向量化处理
-- **Key idea:** Unroll loops to manually do more things in one loop  关键思想：展开循环，在一次循环中执行更多操作
+#+END_SRC
+** 循环展开和向量化处理
+#+begin_notes
+loop unrolling is debatable sometimes it helps
+sometimes is bad
+in this case it helps because we are using fixed 512 byte sizes
+do not unroll things if you dont know the size
+it is harder for complier to optimize that
+#+end_notes
+- **关键思路:** 展开循环以手动执行更多操作
 #+begin_src c++
 void extract_set_bits_optimized(uint64_t bitset, uint32_t* output) {
     // Get total number of set bits
     uint32_t count = __builtin_popcountll(bitset);
     uint32_t* next_base = output + count;
-
     // Process 8 bits at a time unconditionally
     while (bitset) {
         // Extract next 8 set bit positions, even if we don't have 8 bits
         *output++ = __builtin_ctzll(bitset);
         bitset &= (bitset - 1);  // Clear lowest set bit (blsr instruction)
+        *output++ = __builtin_ctzll(bitset);
+        bitset &= (bitset - 1);
 #+end_src
-
-** Runtime CPU Dispatching  运行时 CPU 分派
-- Instead of compiling separate binaries for different architectures, simdjson selects the best implementation at runtime.  simdjson 在运行时选择最佳实现，而不是为不同架构编译单独的二进制文件.
-- By using functions like get_active_implementation(), it dynamically chooses the fastest SIMD path available.  通过使用 get_active_implementation() 等函数，它动态选择最快的 SIMD 路径.
-- Example:  示例:
-#+BEGIN_SRC cpp
-cout << "Active implementation: "
-     << simdjson::get_active_implementation()->name() << endl;
-#+END_SRC
-
-** Avoiding Unnecessary Allocations  避免不必要的内存分配
-- Reusing pre-allocated buffers improves cache locality and reduces repeated allocation overhead.  重用预分配缓冲区可改善缓存局部性并减少重复分配的开销.
-- simdjson’s parser retains internal buffers between parses, so the expensive memory allocation is done only once.  simdjson 的解析器在每次解析之间保留内部缓冲区，因此昂贵的内存分配只进行一次.
-
-** Compiler Directives & Special Build Flags  编译器指令与特殊构建标志
-- Compiler flags (for instance, -O3 or -march=native) and specific macros are key to unlocking peak performance.  编译器标志（例如 -O3 或 -march=native）及特定宏是发挥最高性能的关键.
-
-** C++ optimizations summary  C++ 优化总结
-- Zero cost abstractions  零成本抽象
-- inline functions and casting  内联函数与类型转换
-- Error code over exceptions  使用错误码而非异常
-- memory and loop optimizations  内存与循环优化
-
-* Thank you  谢谢大家
+** 编译器指令和特殊构建标志
+- 编译器标志(例如,-O3 或 -march=native)和特定宏是释放峰值性能的关键。
+** C++优化摘要
+- 零成本抽象
+- 内联函数和强制转换
+- 异常的错误代码
+- 内存和循环优化
+* 谢谢您
